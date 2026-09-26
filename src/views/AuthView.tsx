@@ -18,69 +18,31 @@ import { useApp } from "../context/AppContext";
 import { UserRole } from "../types";
 
 export const AuthView: React.FC = () => {
-  const { login, signup } = useApp();
+  const { login } = useApp();
 
-  const [mode, setMode] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Form Fields
-  const [name, setName] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<UserRole>("Project Manager");
-  const [department, setDepartment] = useState("Engineering");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    setSuccessMessage(null);
     setLoading(true);
 
     try {
-      if (mode === "login") {
-        if (!email.trim() || !password.trim()) {
-          setErrorMessage("Please enter both email address and password.");
-          setLoading(false);
-          return;
-        }
+      if (!email.trim() || !password.trim()) {
+        setErrorMessage("Please enter both email address and password.");
+        setLoading(false);
+        return;
+      }
 
-        const res = await login(email.trim(), password);
-        if (!res.success) {
-          setErrorMessage(res.error || "Invalid credentials. Please verify and try again.");
-        }
-      } else {
-        if (!name.trim()) {
-          setErrorMessage("Please provide your full name.");
-          setLoading(false);
-          return;
-        }
-        if (!email.trim() || !email.includes("@")) {
-          setErrorMessage("Please enter a valid work email address.");
-          setLoading(false);
-          return;
-        }
-        if (password.length < 8) {
-          setErrorMessage("Password must be at least 8 characters in length.");
-          setLoading(false);
-          return;
-        }
-
-        const res = await signup({
-          name: name.trim(),
-          email: email.trim(),
-          password,
-          role,
-          department,
-          company_name: companyName.trim() || undefined,
-        });
-
-        if (!res.success) {
-          setErrorMessage(res.error || "Failed to create account.");
-        }
+      const res = await login(email.trim(), password);
+      if (!res.success) {
+        setErrorMessage(res.error || "Invalid credentials. Please verify and try again.");
       }
     } catch (err: any) {
       setErrorMessage(err.message || "An unexpected error occurred.");
@@ -114,36 +76,11 @@ export const AuthView: React.FC = () => {
 
         {/* Auth Card */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 p-6 sm:p-8 backdrop-blur-sm">
-          {/* Mode Switcher Tabs */}
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl mb-6 border border-slate-200/70">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("login");
-                setErrorMessage(null);
-              }}
-              className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                mode === "login"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("signup");
-                setErrorMessage(null);
-              }}
-              className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                mode === "signup"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              Create Account
-            </button>
+          <div className="mb-5 pb-4 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-900">Sign In to Workspace</h2>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Internal portal access. Accounts are provisioned by your workspace administrator.
+            </p>
           </div>
 
           {/* Alerts */}
@@ -154,56 +91,8 @@ export const AuthView: React.FC = () => {
             </div>
           )}
 
-          {successMessage && (
-            <div className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2.5 text-xs text-emerald-700">
-              <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <User size={15} />
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Elena Rostova"
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Company / Organization Name <span className="text-slate-400 font-normal">(Optional)</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <Building size={15} />
-                    </div>
-                    <input
-                      type="text"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="e.g. Acme Corp (defaults to your workspace)"
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Work Email Address
@@ -228,11 +117,6 @@ export const AuthView: React.FC = () => {
                 <label className="text-xs font-semibold text-slate-700">
                   Password
                 </label>
-                {mode === "login" && (
-                  <span className="text-[11px] text-blue-600 hover:text-blue-700 cursor-pointer">
-                    Forgot password?
-                  </span>
-                )}
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -243,7 +127,7 @@ export const AuthView: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "signup" ? "At least 8 characters" : "••••••••"}
+                  placeholder="••••••••"
                   className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
                 />
                 <button
@@ -254,62 +138,7 @@ export const AuthView: React.FC = () => {
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              {mode === "signup" && password.length > 0 && (
-                <div className="mt-1.5 flex items-center gap-1">
-                  <div
-                    className={`h-1 flex-1 rounded-full ${
-                      password.length >= 8
-                        ? "bg-emerald-500"
-                        : password.length >= 6
-                        ? "bg-amber-500"
-                        : "bg-rose-500"
-                    }`}
-                  />
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {password.length >= 8 ? "Strong" : password.length >= 6 ? "Medium" : "Weak"}
-                  </span>
-                </div>
-              )}
             </div>
-
-            {mode === "signup" && (
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Role
-                  </label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as UserRole)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 bg-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="Project Manager">Project Manager</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Team Lead">Team Lead</option>
-                    <option value="Employee">Employee</option>
-                    <option value="Sales Manager">Sales Manager</option>
-                    <option value="HR Manager">HR Manager</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Department
-                  </label>
-                  <select
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 bg-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="Engineering">Engineering</option>
-                    <option value="Product">Product</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Sales & Revenue">Sales & Revenue</option>
-                    <option value="Human Resources">Human Resources</option>
-                    <option value="Finance">Finance</option>
-                  </select>
-                </div>
-              </div>
-            )}
 
             <button
               type="submit"
@@ -320,7 +149,7 @@ export const AuthView: React.FC = () => {
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>{mode === "login" ? "Sign In to Workspace" : "Create Account & Sign In"}</span>
+                  <span>Sign In to Workspace</span>
                   <ArrowRight size={14} />
                 </>
               )}
