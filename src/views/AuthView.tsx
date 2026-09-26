@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { UserRole } from "../types";
-import { fallbackDemoUsers } from "../services/auth";
 
 export const AuthView: React.FC = () => {
   const { login, signup } = useApp();
@@ -88,18 +87,6 @@ export const AuthView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickDemoLogin = async (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setErrorMessage(null);
-    setLoading(true);
-    const res = await login(demoEmail, demoPass);
-    if (!res.success) {
-      setErrorMessage(res.error || "Demo login failed.");
-    }
-    setLoading(false);
   };
 
   return (
@@ -339,44 +326,6 @@ export const AuthView: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Credentials */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Instant Demo Access
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">1-click test</span>
-            </div>
-
-            <div className="space-y-1.5">
-              {fallbackDemoUsers.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => handleQuickDemoLogin(u.email, u.defaultPassword)}
-                  className="w-full flex items-center justify-between p-2 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-blue-50/60 hover:border-blue-200 transition-all text-left cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <img
-                      src={u.avatar}
-                      alt={u.name}
-                      className="w-6 h-6 rounded-full object-cover shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-700 truncate">
-                        {u.name}
-                      </div>
-                      <div className="text-[10px] text-slate-400 truncate">{u.email}</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600 shrink-0">
-                    {u.role}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Security & Encryption Notice */}

@@ -10,8 +10,6 @@ import {
   Sun,
   User,
   ChevronDown,
-  RotateCcw,
-  Check,
   Building,
   Briefcase,
   Layers,
@@ -27,8 +25,6 @@ import { useApp } from "../../context/AppContext";
 export const Topbar: React.FC = () => {
   const {
     currentUser,
-    switchUser,
-    availableUsers,
     logout,
     settings,
     updateSettings,
@@ -40,7 +36,6 @@ export const Topbar: React.FC = () => {
     unreadNotificationsCount,
     markNotificationRead,
     markAllNotificationsRead,
-    resetDemoData,
     navigateTo,
     currentView,
     kpis,
@@ -424,55 +419,7 @@ export const Topbar: React.FC = () => {
                 </div>
               </div>
 
-              {/* Quick Role Switcher */}
               <div className="p-2">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 pb-1.5">
-                  Switch Persona / Role (RBAC)
-                </div>
-                <div className="space-y-1">
-                  {availableUsers.map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => {
-                        switchUser(u.id);
-                        setIsUserMenuOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors cursor-pointer ${
-                        u.id === currentUser.id
-                          ? isDark
-                            ? "bg-blue-900/40 text-blue-300 font-semibold border border-blue-800"
-                            : "bg-blue-50 text-blue-700 font-semibold border border-blue-100"
-                          : isDark
-                          ? "text-slate-300 hover:bg-slate-800 hover:text-white"
-                          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <img src={u.avatar} className="w-5 h-5 rounded-full object-cover" />
-                        <span>{u.name}</span>
-                        <span className="text-[10px] text-slate-400">({u.role})</span>
-                      </div>
-                      {u.id === currentUser.id && <Check size={14} className="text-blue-500" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className={`border-t p-2 space-y-1 ${isDark ? "border-slate-800" : "border-slate-100"}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm("Reset all CRM, Project, Task, and HR records back to default demo state?")) {
-                      resetDemoData();
-                      setIsUserMenuOpen(false);
-                    }
-                  }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                    isDark ? "text-amber-400 hover:bg-slate-800" : "text-slate-500 hover:text-amber-700 hover:bg-amber-50"
-                  }`}
-                >
-                  <RotateCcw size={14} /> Reset Demo Data
-                </button>
                 <button
                   type="button"
                   onClick={() => {
