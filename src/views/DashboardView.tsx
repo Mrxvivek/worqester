@@ -25,6 +25,7 @@ import {
   MessageSquare,
   Pencil,
   Download,
+  Upload,
   Check,
   ExternalLink,
   FileText,
@@ -46,15 +47,6 @@ import {
 import { Task, Employee } from "../types";
 import { EditTaskModal } from "../components/modals/EditModals";
 import { generatePayslipPDF } from "../utils/payslipGenerator";
-
-const pipelineTrendData = [
-  { month: "Apr", revenue: 4200000, pipeline: 12000000 },
-  { month: "May", revenue: 5800000, pipeline: 14500000 },
-  { month: "Jun", revenue: 7100000, pipeline: 18000000 },
-  { month: "Jul", revenue: 6400000, pipeline: 19500000 },
-  { month: "Aug", revenue: 8900000, pipeline: 22000000 },
-  { month: "Sep", revenue: 11400000, pipeline: 26500000 },
-];
 
 const COLORS = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#f43f5e"];
 
@@ -82,36 +74,69 @@ export const DashboardView: React.FC = () => {
     addTaskComment,
   } = useApp();
 
-  const [rangePreset, setRangePreset] = useState<RangePreset>("30d");
-  const [startDate, setStartDate] = useState("2026-08-20");
-  const [endDate, setEndDate] = useState("2026-09-19");
+  const todayIso = new Date().toISOString().split("T")[0];
+  const [rangePreset, setRangePreset] = useState<RangePreset>("all");
+  const [startDate, setStartDate] = useState("2020-01-01");
+  const [endDate, setEndDate] = useState("2030-12-31");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const isEmployee = currentUser.role === "Employee";
 
   const handlePresetChange = (preset: RangePreset) => {
     setRangePreset(preset);
-    const today = "2026-09-19";
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
     if (preset === "today") {
       setStartDate(today);
       setEndDate(today);
     } else if (preset === "7d") {
-      setStartDate("2026-09-12");
+      const d = new Date(now.getTime() - 7 * 86400000).toISOString().split("T")[0];
+      setStartDate(d);
       setEndDate(today);
     } else if (preset === "30d") {
-      setStartDate("2026-08-20");
+      const d = new Date(now.getTime() - 30 * 86400000).toISOString().split("T")[0];
+      setStartDate(d);
       setEndDate(today);
     } else if (preset === "quarter") {
-      setStartDate("2026-07-01");
+      const qMonth = Math.floor(now.getMonth() / 3) * 3;
+      const d = new Date(now.getFullYear(), qMonth, 1).toISOString().split("T")[0];
+      setStartDate(d);
       setEndDate(today);
     } else if (preset === "ytd") {
-      setStartDate("2026-01-01");
+      setStartDate(`${now.getFullYear()}-01-01`);
       setEndDate(today);
     } else if (preset === "all") {
-      setStartDate("2025-01-01");
-      setEndDate("2026-12-31");
+      setStartDate("2020-01-01");
+      setEndDate("2030-12-31");
     }
   };
+
+  const pipelineTrendData = useMemo(() => {
+    const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep"];
+    if (deals.length === 0) {
+      return months.map((month) => ({ month, revenue: 0, pipeline: 0 }));
+    }
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const buckets: Record<string, { revenue: number; pipeline: number }> = {};
+    months.forEach((m) => {
+      buckets[m] = { revenue: 0, pipeline: 0 };
+    });
+    deals.forEach((d) => {
+      const dt = d.expectedCloseDate ? new Date(d.expectedCloseDate) : new Date();
+      const mName = monthNames[dt.getMonth()] || "Sep";
+      const targetKey = buckets[mName] ? mName : "Sep";
+      if (d.stage === "Closed Won") {
+        buckets[targetKey].revenue += Number(d.amount) || 0;
+      } else if (d.stage !== "Closed Lost") {
+        buckets[targetKey].pipeline += Number(d.amount) || 0;
+      }
+    });
+    return months.map((month) => ({
+      month,
+      revenue: buckets[month].revenue,
+      pipeline: buckets[month].pipeline,
+    }));
+  }, [deals]);
 
   const periodDeals = useMemo(() => {
     return deals.filter((d) => {
@@ -147,10 +172,10 @@ export const DashboardView: React.FC = () => {
 
   const periodOverdueTasks = useMemo(() => {
     const count = periodTasks.filter(
-      (t) => t.status !== "Done" && (t.slaBreached || (t.dueDate && t.dueDate < "2026-09-19"))
+      (t) => t.status !== "Done" && (t.slaBreached || (t.dueDate && t.dueDate < todayIso))
     ).length;
     return count > 0 ? count : kpis.overdueTasks;
-  }, [periodTasks, kpis.overdueTasks]);
+  }, [periodTasks, kpis.overdueTasks, todayIso]);
 
   const userAttendedToday = attendance.some(
     (a) => a.employeeName === currentUser.name && a.status === "Present"
@@ -175,9 +200,9 @@ export const DashboardView: React.FC = () => {
   const myOverdueTasks = useMemo(
     () =>
       myTasks.filter(
-        (t) => t.status !== "Done" && (t.slaBreached || (t.dueDate && t.dueDate < "2026-09-19"))
+        (t) => t.status !== "Done" && (t.slaBreached || (t.dueDate && t.dueDate < todayIso))
       ),
-    [myTasks]
+    [myTasks, todayIso]
   );
 
   const myProjects = useMemo(() => {
@@ -807,6 +832,15 @@ export const DashboardView: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => navigateTo("settings", "data")}
+              className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Upload size={14} className="text-blue-600" />
+              <span>Upload Original Data</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsAiAssistantOpen(true)}
               className="px-3.5 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
@@ -822,7 +856,7 @@ export const DashboardView: React.FC = () => {
         <KpiCard
           title="Open Pipeline Value"
           value={formatCurrency(periodPipelineValue, settings?.currency || "INR", settings?.currencySymbol || "₹")}
-          change="+18.4%"
+          change={`${kpis.openDealsCount} Open Deals`}
           trend="up"
           comparisonPeriod={rangePreset === "all" ? "cumulative total" : `for ${rangePreset.toUpperCase()} window`}
           icon={<DollarSign size={18} />}
@@ -833,7 +867,7 @@ export const DashboardView: React.FC = () => {
         <KpiCard
           title="Won Revenue"
           value={formatCurrency(periodWonRevenue, settings?.currency || "INR", settings?.currencySymbol || "₹")}
-          change="+24.2%"
+          change={periodWonRevenue > 0 ? "Booked" : "0 Won"}
           trend="up"
           comparisonPeriod={rangePreset === "all" ? "all-time booked" : `${rangePreset.toUpperCase()} booked`}
           icon={<Briefcase size={18} />}
@@ -869,9 +903,9 @@ export const DashboardView: React.FC = () => {
           title="Total Headcount"
           value={kpis.totalEmployees}
           subValue={`${kpis.attendanceToday} In Office`}
-          change="+3 Hired"
+          change={`${kpis.activeEmployees} Active`}
           trend="up"
-          comparisonPeriod="this quarter"
+          comparisonPeriod="team roster"
           icon={<Users size={18} />}
           iconBg="bg-indigo-50 text-indigo-600 border-indigo-100"
           onClick={() => navigateTo("hrm", "employees")}
@@ -972,11 +1006,15 @@ export const DashboardView: React.FC = () => {
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-around text-xs text-slate-600">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-              <span className="font-medium">Total Pipeline (₹2.65 Cr)</span>
+              <span className="font-medium">
+                Total Pipeline ({formatCurrency(periodPipelineValue, settings?.currency || "INR", settings?.currencySymbol || "₹")})
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
-              <span className="font-medium">Closed Realized (₹1.14 Cr)</span>
+              <span className="font-medium">
+                Closed Realized ({formatCurrency(periodWonRevenue, settings?.currency || "INR", settings?.currencySymbol || "₹")})
+              </span>
             </div>
           </div>
         </div>
@@ -1000,44 +1038,58 @@ export const DashboardView: React.FC = () => {
           </div>
 
           <div className="space-y-3.5 flex-1">
-            {projects.slice(0, 4).map((p) => (
-              <div
-                key={p.id}
-                onClick={() => navigateTo("projects", "all")}
-                className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 hover:border-slate-300 hover:bg-slate-100/60 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-mono text-[11px] text-blue-600 font-bold">
-                      {p.code}
-                    </span>
-                    <span className="font-semibold text-slate-800 truncate">{p.name}</span>
-                  </div>
-                  <StatusBadge status={p.health} size="sm" />
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      p.health === "Critical"
-                        ? "bg-rose-500"
-                        : p.health === "At Risk"
-                        ? "bg-amber-500"
-                        : "bg-blue-600"
-                    }`}
-                    style={{ width: `${p.progress}%` }}
-                  />
-                </div>
-
-                <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                  <span>{p.progress}% Completed</span>
-                  <span>
-                    Spent: ₹{(p.spent / 100000).toFixed(1)}L / ₹{(p.budget / 100000).toFixed(1)}L
-                  </span>
-                </div>
+            {projects.length === 0 ? (
+              <div className="py-10 text-center space-y-2">
+                <p className="text-xs text-slate-500">No active projects yet. Start by adding your original project data.</p>
+                <button
+                  type="button"
+                  onClick={() => openCreateModal("project")}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus size={13} />
+                  <span>Create First Project</span>
+                </button>
               </div>
-            ))}
+            ) : (
+              projects.slice(0, 4).map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => navigateTo("projects", "all")}
+                  className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 hover:border-slate-300 hover:bg-slate-100/60 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-mono text-[11px] text-blue-600 font-bold">
+                        {p.code}
+                      </span>
+                      <span className="font-semibold text-slate-800 truncate">{p.name}</span>
+                    </div>
+                    <StatusBadge status={p.health} size="sm" />
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        p.health === "Critical"
+                          ? "bg-rose-500"
+                          : p.health === "At Risk"
+                          ? "bg-amber-500"
+                          : "bg-blue-600"
+                      }`}
+                      style={{ width: `${p.progress}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span>{p.progress}% Completed</span>
+                    <span>
+                      Spent: ₹{(p.spent / 100000).toFixed(1)}L / ₹{(p.budget / 100000).toFixed(1)}L
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
@@ -1075,39 +1127,53 @@ export const DashboardView: React.FC = () => {
           </div>
 
           <div className="space-y-2.5">
-            {tasks
-              .filter((t) => t.priority === "Critical" || t.priority === "High")
-              .slice(0, 4)
-              .map((task) => (
-                <div
-                  key={task.id}
-                  onClick={() => navigateTo("tasks", "kanban")}
-                  className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 hover:border-slate-300 hover:bg-slate-100/60 transition-colors cursor-pointer flex items-center justify-between gap-3 text-xs"
+            {tasks.filter((t) => t.priority === "Critical" || t.priority === "High").length === 0 ? (
+              <div className="py-8 text-center space-y-2">
+                <p className="text-xs text-slate-500">No high-priority tasks pending. Add tasks or import your data.</p>
+                <button
+                  type="button"
+                  onClick={() => openCreateModal("task")}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
                 >
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <PriorityBadge priority={task.priority} size="sm" />
-                      <span className="font-semibold text-slate-900 truncate">{task.title}</span>
+                  <Plus size={13} />
+                  <span>Add Task</span>
+                </button>
+              </div>
+            ) : (
+              tasks
+                .filter((t) => t.priority === "Critical" || t.priority === "High")
+                .slice(0, 4)
+                .map((task) => (
+                  <div
+                    key={task.id}
+                    onClick={() => navigateTo("tasks", "kanban")}
+                    className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 hover:border-slate-300 hover:bg-slate-100/60 transition-colors cursor-pointer flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <PriorityBadge priority={task.priority} size="sm" />
+                        <span className="font-semibold text-slate-900 truncate">{task.title}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                        <span>{task.projectName}</span>
+                        <span>•</span>
+                        <span>Assigned to {task.assigneeName}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                      <span>{task.projectName}</span>
-                      <span>•</span>
-                      <span>Assigned to {task.assigneeName}</span>
-                    </div>
-                  </div>
 
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <StatusBadge status={task.status} size="sm" />
-                    <span
-                      className={`text-[10px] font-mono font-medium ${
-                        task.slaBreached ? "text-rose-600 font-bold" : "text-slate-500"
-                      }`}
-                    >
-                      Due {formatDate(task.dueDate)}
-                    </span>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <StatusBadge status={task.status} size="sm" />
+                      <span
+                        className={`text-[10px] font-mono font-medium ${
+                          task.slaBreached ? "text-rose-600 font-bold" : "text-slate-500"
+                        }`}
+                      >
+                        Due {formatDate(task.dueDate)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+            )}
           </div>
         </div>
 
@@ -1131,32 +1197,38 @@ export const DashboardView: React.FC = () => {
           </div>
 
           <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-            {(activities || []).slice(0, 5).map((act) => (
-              <div
-                key={act.id || Math.random()}
-                className="flex items-start gap-3 text-xs pb-3 border-b border-slate-100 last:border-0 last:pb-0"
-              >
-                <div className="w-7 h-7 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 flex-shrink-0 mt-0.5 font-bold text-[10px]">
-                  {(act.userName || "U").charAt(0)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800">{act.title || "Untitled Activity"}</span>
-                    <span className="text-[10px] text-slate-400 font-mono">{act.timestamp || ""}</span>
-                  </div>
-                  <p className="text-slate-600 text-[11px] mt-0.5">{act.description || ""}</p>
-                  <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
-                    <span>by {act.userName || "Team Member"}</span>
-                    {act.entityType && (
-                      <>
-                        <span>•</span>
-                        <span className="text-blue-600 font-medium">{act.entityType}: {act.entityName || "General"}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
+            {(activities || []).length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-500">
+                No operational activity logged yet. Events will appear here in real time as you create or upload records.
               </div>
-            ))}
+            ) : (
+              (activities || []).slice(0, 5).map((act) => (
+                <div
+                  key={act.id || Math.random()}
+                  className="flex items-start gap-3 text-xs pb-3 border-b border-slate-100 last:border-0 last:pb-0"
+                >
+                  <div className="w-7 h-7 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 flex-shrink-0 mt-0.5 font-bold text-[10px]">
+                    {(act.userName || "U").charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800">{act.title || "Untitled Activity"}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{act.timestamp || ""}</span>
+                    </div>
+                    <p className="text-slate-600 text-[11px] mt-0.5">{act.description || ""}</p>
+                    <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
+                      <span>by {act.userName || "Team Member"}</span>
+                      {act.entityType && (
+                        <>
+                          <span>•</span>
+                          <span className="text-blue-600 font-medium">{act.entityType}: {act.entityName || "General"}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

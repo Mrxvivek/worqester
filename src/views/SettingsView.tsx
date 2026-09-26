@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import {
-  Settings,
   Shield,
   Layers,
   Database,
@@ -9,7 +8,8 @@ import {
   Check,
   RotateCcw,
   Download,
-  AlertTriangle,
+  Upload,
+  FileSpreadsheet,
   Building,
   Users,
   Plus,
@@ -17,7 +17,6 @@ import {
   Mail,
   UserCheck,
 } from "lucide-react";
-import { Role } from "../types";
 import { InviteUserModal } from "../components/modals/EditModals";
 
 export const SettingsView: React.FC = () => {
@@ -35,6 +34,26 @@ export const SettingsView: React.FC = () => {
     revokeInvitation,
     rbacPermissions,
     toggleRbacPermission,
+    companies,
+    contacts,
+    leads,
+    deals,
+    projects,
+    tasks,
+    employees,
+    expenses,
+    assets,
+    documents,
+    notes,
+    milestones,
+    createCompany,
+    createLead,
+    createDeal,
+    createProject,
+    createTask,
+    createEmployee,
+    createExpense,
+    createAsset,
   } = useApp();
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -45,6 +64,11 @@ export const SettingsView: React.FC = () => {
   const [currency, setCurrency] = useState(settings?.currency || "INR");
   const [currencySymbol, setCurrencySymbol] = useState(settings?.currencySymbol || "₹");
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Original Data Import State
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importCategory, setImportCategory] = useState<string>("auto");
+  const [importStatus, setImportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const currentModules: Record<string, boolean> = {
     crm: true,
@@ -90,8 +114,20 @@ export const SettingsView: React.FC = () => {
   const exportSystemJson = () => {
     const backupData = {
       exportedAt: new Date().toISOString(),
-      version: "1.0.0",
+      version: "2.0.0",
       app: "Worqester",
+      companies,
+      contacts,
+      leads,
+      deals,
+      projects,
+      tasks,
+      employees,
+      expenses,
+      assets,
+      documents,
+      notes,
+      milestones,
     };
     const blob = new Blob([JSON.stringify(backupData, null, 2)], {
       type: "application/json",
@@ -100,6 +136,244 @@ export const SettingsView: React.FC = () => {
     const a = document.createElement("a");
     a.href = url;
     a.download = `worqester-backup-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const parseCsvRows = (text: string): Record<string, string>[] => {
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+    return lines.slice(1).map((line) => {
+      const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      const obj: Record<string, string> = {};
+      headers.forEach((h, i) => {
+        obj[h] = cols[i] ?? "";
+      });
+      return obj;
+    });
+  };
+
+  const ingestRecords = (category: string, items: any[]): number => {
+    let count = 0;
+    const today = new Date().toISOString().split("T")[0];
+    items.forEach((item) => {
+      if (category === "projects") {
+        createProject({
+          name: item.name || item.title || "Imported Project",
+          code: item.code || `PRJ-${Math.floor(100 + Math.random() * 900)}`,
+          companyId: item.companyId || companies[0]?.id,
+          companyName: item.companyName || companies[0]?.name || settings?.companyName || "Organization",
+          projectManagerId: currentUser.id,
+          projectManagerName: item.projectManagerName || currentUser.name,
+          teamMemberIds: [currentUser.id],
+          startDate: item.startDate || today,
+          endDate: item.endDate || today,
+          priority: (item.priority as any) || "High",
+          status: (item.status as any) || "In Progress",
+          health: (item.health as any) || "Healthy",
+          budget: Number(item.budget) || 0,
+          spent: Number(item.spent) || 0,
+          progress: Number(item.progress) || 0,
+          description: item.description || "Imported project record.",
+        });
+        count++;
+      } else if (category === "tasks") {
+        createTask({
+          title: item.title || item.name || "Imported Task",
+          description: item.description || "",
+          projectId: item.projectId || projects[0]?.id || "prj-default",
+          projectName: item.projectName || projects[0]?.name || "General Project",
+          assigneeId: currentUser.id,
+          assigneeName: item.assigneeName || currentUser.name,
+          reporterId: currentUser.id,
+          reporterName: currentUser.name,
+          priority: (item.priority as any) || "Medium",
+          status: (item.status as any) || "To Do",
+          labels: Array.isArray(item.labels) ? item.labels : ["Imported"],
+          dueDate: item.dueDate || today,
+          estimatedHours: Number(item.estimatedHours) || 8,
+          actualHours: Number(item.actualHours) || 0,
+        });
+        count++;
+      } else if (category === "employees") {
+        const fullName = item.fullName || item.name || `${item.firstName || "Team"} ${item.lastName || "Member"}`.trim();
+        const parts = fullName.split(" ");
+        createEmployee({
+          employeeNumber: item.employeeNumber || `WQ-${1000 + employees.length + count + 1}`,
+          firstName: item.firstName || parts[0] || "Team",
+          lastName: item.lastName || parts.slice(1).join(" ") || "Member",
+          fullName,
+          email: item.email || `${parts[0]?.toLowerCase() || "user"}@worqester.internal`,
+          phone: item.phone || "+91 98000 00000",
+          avatar: item.avatar || currentUser.avatar,
+          department: item.department || "Engineering & Cloud",
+          team: item.team || "Core Operations",
+          designation: item.designation || item.role || "Specialist",
+          location: item.location || "Headquarters",
+          employmentType: (item.employmentType as any) || "Full Time",
+          joiningDate: item.joiningDate || today,
+          status: (item.status as any) || "Active",
+          workMode: (item.workMode as any) || "Hybrid",
+          skills: Array.isArray(item.skills) ? item.skills : (item.skills ? String(item.skills).split(";") : ["Operations"]),
+          capacityHoursPerWeek: Number(item.capacityHoursPerWeek) || 40,
+          loggedHoursThisWeek: Number(item.loggedHoursThisWeek) || 0,
+          leaveBalanceDays: Number(item.leaveBalanceDays) || 18,
+          salaryBasic: Number(item.salaryBasic || item.salary) || 0,
+          bankAccountMasked: item.bankAccountMasked || "Bank **** 0000",
+        });
+        count++;
+      } else if (category === "deals") {
+        createDeal({
+          name: item.name || item.title || "Imported Deal",
+          companyId: item.companyId || companies[0]?.id || "comp-default",
+          companyName: item.companyName || item.company || "Client Account",
+          contactId: "cont-01",
+          contactName: item.contactName || "Primary Contact",
+          ownerId: currentUser.id,
+          ownerName: item.ownerName || currentUser.name,
+          stage: (item.stage as any) || "Qualification",
+          amount: Number(item.amount || item.value) || 0,
+          probability: Number(item.probability) || 50,
+          expectedCloseDate: item.expectedCloseDate || today,
+          priority: (item.priority as any) || "High",
+          source: item.source || "Direct Import",
+        });
+        count++;
+      } else if (category === "leads") {
+        createLead({
+          name: item.name || "Imported Lead",
+          company: item.company || item.companyName || "Prospect Organization",
+          email: item.email || "",
+          phone: item.phone || "",
+          industry: item.industry || "Technology",
+          source: item.source || "Imported",
+          ownerId: currentUser.id,
+          ownerName: item.ownerName || currentUser.name,
+          status: (item.status as any) || "New",
+          priority: (item.priority as any) || "High",
+          score: Number(item.score) || 75,
+          expectedValue: Number(item.expectedValue || item.amount) || 0,
+          nextFollowUp: item.nextFollowUp || today,
+        });
+        count++;
+      } else if (category === "companies") {
+        createCompany({
+          name: item.name || "Imported Company",
+          industry: item.industry || "Enterprise",
+          website: item.website || "",
+          revenue: Number(item.revenue) || 0,
+          employeesCount: Number(item.employeesCount) || 50,
+          country: item.country || "India",
+          location: item.city || item.location || "",
+          status: (item.status as any) || "Active",
+          ownerName: currentUser.name,
+          primaryContact: item.primaryContact || "",
+          tier: (item.tier as any) || "Enterprise",
+        });
+        count++;
+      } else if (category === "expenses") {
+        createExpense({
+          employeeId: currentUser.id,
+          employeeName: item.employeeName || currentUser.name,
+          category: (item.category as any) || "Office",
+          amount: Number(item.amount) || 0,
+          date: item.date || today,
+          description: item.description || "Imported expense claim",
+          status: (item.status as any) || "Pending",
+        });
+        count++;
+      } else if (category === "assets") {
+        createAsset({
+          name: item.name || "Imported Asset",
+          category: (item.category as any) || "Laptop",
+          serialNumber: item.serialNumber || `SN-${Date.now()}`,
+          employeeId: currentUser.id,
+          assignedToName: item.assignedToName || currentUser.name,
+          allocatedDate: item.purchaseDate || item.allocatedDate || today,
+          status: (item.status as any) || "Assigned",
+          condition: (item.condition as any) || "Good",
+        });
+        count++;
+      }
+    });
+    return count;
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportStatus(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = String(evt.target?.result || "");
+        let totalImported = 0;
+
+        if (file.name.toLowerCase().endsWith(".csv")) {
+          const rows = parseCsvRows(text);
+          const targetCat = importCategory === "auto" ? "employees" : importCategory;
+          totalImported = ingestRecords(targetCat, rows);
+        } else {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) {
+            const targetCat = importCategory === "auto" ? "projects" : importCategory;
+            totalImported = ingestRecords(targetCat, parsed);
+          } else if (parsed && typeof parsed === "object") {
+            const keys = ["companies", "leads", "deals", "projects", "tasks", "employees", "expenses", "assets"];
+            keys.forEach((k) => {
+              if (Array.isArray(parsed[k]) && parsed[k].length > 0) {
+                totalImported += ingestRecords(k, parsed[k]);
+              }
+            });
+          }
+        }
+
+        setImportStatus({
+          type: "success",
+          message: `Successfully uploaded and imported ${totalImported} original record(s) from "${file.name}".`,
+        });
+      } catch (err: any) {
+        setImportStatus({
+          type: "error",
+          message: `Failed to parse "${file.name}": ${err?.message || "Invalid JSON/CSV format"}`,
+        });
+      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+    reader.readAsText(file);
+  };
+
+  const downloadSampleTemplate = () => {
+    const sample = {
+      companies: [
+        { name: "Your Client Corp", industry: "Technology", revenue: 15000000, country: "India", status: "Active" },
+      ],
+      projects: [
+        { name: "Q4 Production Rollout", code: "PRJ-101", budget: 2500000, spent: 0, progress: 0, priority: "High", status: "In Progress", health: "Healthy" },
+      ],
+      tasks: [
+        { title: "Initial Architecture Setup", projectName: "Q4 Production Rollout", priority: "High", status: "To Do", dueDate: new Date().toISOString().split("T")[0], estimatedHours: 16 },
+      ],
+      employees: [
+        { fullName: "Aarav Verma", email: "aarav@company.com", department: "Engineering & Cloud", designation: "Senior Engineer", salaryBasic: 150000 },
+      ],
+      deals: [
+        { name: "Annual Platform License", companyName: "Your Client Corp", stage: "Proposal", amount: 1800000, probability: 70 },
+      ],
+      leads: [
+        { name: "Neha Kapoor", company: "Global Retail Ltd", email: "neha@globalretail.com", expectedValue: 1200000 },
+      ],
+    };
+    const blob = new Blob([JSON.stringify(sample, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "worqester-original-data-template.json";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -491,21 +765,92 @@ export const SettingsView: React.FC = () => {
         <div className="max-w-2xl space-y-6">
           <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 shadow-sm space-y-6 text-xs">
             <div>
-              <h3 className="text-sm font-bold text-white">Data Management & Persistence</h3>
+              <h3 className="text-sm font-bold text-white">Original Data Upload, Export & Persistence</h3>
               <p className="text-xs text-slate-400">
-                LocalStorage engine initialized with reactive state synchronization
+                Upload your organization's original data (JSON or CSV), export full workspace backups, or clear records
               </p>
+            </div>
+
+            {importStatus && (
+              <div
+                className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                  importStatus.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                    : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                }`}
+              >
+                <Check size={16} />
+                <span>{importStatus.message}</span>
+              </div>
+            )}
+
+            {/* Upload Original Data Card */}
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/60 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-white flex items-center gap-1.5">
+                    <Upload size={14} className="text-emerald-400" />
+                    <span>Upload Original Data (JSON or CSV)</span>
+                  </h4>
+                  <p className="text-slate-400 text-[11px]">
+                    Import projects, tasks, employees, deals, leads, companies, expenses, or assets
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={downloadSampleTemplate}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <FileSpreadsheet size={13} className="text-blue-400" />
+                  <span>Download Template</span>
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+                <select
+                  value={importCategory}
+                  onChange={(e) => setImportCategory(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
+                >
+                  <option value="auto">Auto-detect (Full Workspace JSON)</option>
+                  <option value="projects">Projects (CSV / JSON Array)</option>
+                  <option value="tasks">Tasks (CSV / JSON Array)</option>
+                  <option value="employees">Employees (CSV / JSON Array)</option>
+                  <option value="deals">CRM Deals (CSV / JSON Array)</option>
+                  <option value="leads">CRM Leads (CSV / JSON Array)</option>
+                  <option value="companies">Companies (CSV / JSON Array)</option>
+                  <option value="expenses">Expenses (CSV / JSON Array)</option>
+                  <option value="assets">Assets (CSV / JSON Array)</option>
+                </select>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,.csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Upload size={14} />
+                  <span>Select & Upload File (.json / .csv)</span>
+                </button>
+              </div>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/60 flex items-center justify-between">
               <div>
                 <h4 className="font-bold text-white">Full JSON Export</h4>
-                <p className="text-slate-400 text-[11px]">Download all records, pipeline deals, and employees</p>
+                <p className="text-slate-400 text-[11px]">Download all current records, pipeline deals, projects, tasks, and employees</p>
               </div>
               <button
                 type="button"
                 onClick={exportSystemJson}
-                className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold flex items-center gap-1.5"
+                className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <Download size={14} />
                 <span>Export JSON</span>
@@ -514,22 +859,22 @@ export const SettingsView: React.FC = () => {
 
             <div className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/20 flex items-center justify-between">
               <div>
-                <h4 className="font-bold text-rose-400">Reset Demo Database</h4>
+                <h4 className="font-bold text-rose-400">Clear All Workspace Records</h4>
                 <p className="text-slate-400 text-[11px]">
-                  Clear customized changes and reload the rich default enterprise seed datasets
+                  Remove all projects, tasks, deals, leads, and employee records to reset to a blank workspace
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm("Reset Worqester to default enterprise demo data?")) {
+                  if (confirm("Clear all workspace records and reset to a blank database?")) {
                     resetToDemoData();
                   }
                 }}
-                className="px-3.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 font-semibold flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <RotateCcw size={14} />
-                <span>Reset Demo</span>
+                <span>Clear All Data</span>
               </button>
             </div>
           </div>

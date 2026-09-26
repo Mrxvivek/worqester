@@ -136,7 +136,9 @@ export const AiIntelligenceView: React.FC = () => {
                   <span>Revenue Velocity & Expansion</span>
                 </div>
                 <p className="text-slate-300 leading-relaxed text-[11px]">
-                  Pipeline health is robust with ₹{formatCurrency(kpis.pipelineValue)} across {kpis.openDealsCount} qualified engagements. The 85% probability deal with Acme Global is primed for closing this month.
+                  {kpis.openDealsCount > 0
+                    ? `Pipeline stands at ${formatCurrency(kpis.pipelineValue)} across ${kpis.openDealsCount} active deal(s). Top opportunity: ${deals[0]?.name || "Enterprise Account"}.`
+                    : "No active deals in pipeline yet. Create or import your CRM deals to activate revenue forecasting."}
                 </p>
               </div>
 
@@ -146,7 +148,9 @@ export const AiIntelligenceView: React.FC = () => {
                   <span>SLA & Execution Guardrails</span>
                 </div>
                 <p className="text-slate-300 leading-relaxed text-[11px]">
-                  {kpis.overdueTasks} task has breached delivery threshold. Recommend reassigning authentication rotation milestones to buffer sprint finish.
+                  {kpis.overdueTasks > 0
+                    ? `${kpis.overdueTasks} task(s) have breached delivery threshold. Recommend reviewing high-priority deliverables on the Kanban board.`
+                    : `${kpis.openTasks} open deliverable(s) tracked with 0 SLA breaches. All active project timelines are operating within target thresholds.`}
                 </p>
               </div>
 
@@ -156,7 +160,9 @@ export const AiIntelligenceView: React.FC = () => {
                   <span>Headcount & Capacity Balance</span>
                 </div>
                 <p className="text-slate-300 leading-relaxed text-[11px]">
-                  Engineering utilization is running at 94%. With {kpis.openPositionsCount} requisitions open, fast-tracking the Senior Cloud Architect offer will mitigate Q4 strain.
+                  {kpis.totalEmployees > 0
+                    ? `${kpis.activeEmployees} active team member(s) registered (${kpis.attendanceToday} checked in today) with ${kpis.openPositionsCount} open requisition(s).`
+                    : "No employee records loaded yet. Add team members in HRM or upload your employee roster."}
                 </p>
               </div>
             </div>
@@ -172,7 +178,9 @@ export const AiIntelligenceView: React.FC = () => {
                 </span>
               </div>
               <p className="text-slate-400 leading-relaxed">
-                Proposal stage deals have averaged 14 days in negotiation. Auto-generating standardized SLA and NDA terms can reduce sales friction by 35%.
+                {deals.length > 0
+                  ? `Tracking ${deals.length} total deal(s) in CRM. Standardizing SLA and NDA terms across Proposal and Negotiation stages accelerates close velocity.`
+                  : "Start adding leads and deals in the CRM module to unlock automated pipeline stage velocity analysis."}
               </p>
               <button
                 type="button"
@@ -192,7 +200,9 @@ export const AiIntelligenceView: React.FC = () => {
                 </span>
               </div>
               <p className="text-slate-400 leading-relaxed">
-                Task "NextGen Microservices Refactor" contains 3 interdependent blockers. Worqester AI has mapped a critical path sequence.
+                {tasks.length > 0
+                  ? `${tasks.filter((t) => t.status !== "Done").length} active task(s) across ${projects.length} project(s). Use AI Smart Priority to sequence critical path deliverables.`
+                  : "Create projects and tasks to enable autonomous critical-path sequencing and workload balancing."}
               </p>
               <button
                 type="button"

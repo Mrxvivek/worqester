@@ -135,6 +135,8 @@ export const Sidebar: React.FC = () => {
     navigateTo,
     sidebarCollapsed,
     setSidebarCollapsed,
+    mobileMenuOpen,
+    setMobileMenuOpen,
     openCreateModal,
     kpis,
     leads,
@@ -175,35 +177,61 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside
-      className={`h-screen sticky top-0 flex flex-col bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 z-30 select-none ${
-        sidebarCollapsed ? "w-20" : "w-64"
-      }`}
-    >
-      {/* Brand Header */}
-      <div className="p-6 flex items-center justify-between border-b border-slate-800">
+    <>
+      {/* Mobile Backdrop */}
+      {mobileMenuOpen && (
         <div
-          onClick={() => navigateTo("dashboard")}
-          className="flex items-center gap-3 cursor-pointer overflow-hidden group"
-        >
-          <div className="w-8 h-8 bg-blue-500 rounded flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-            W
+          className="md:hidden fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed md:sticky top-0 left-0 h-screen flex flex-col bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 z-50 select-none ${
+          mobileMenuOpen
+            ? "w-72 translate-x-0 shadow-2xl"
+            : "max-md:-translate-x-full md:translate-x-0 " + (sidebarCollapsed ? "w-20" : "w-64")
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="p-5 flex items-center justify-between border-b border-slate-800">
+          <div
+            onClick={() => {
+              navigateTo("dashboard");
+              setMobileMenuOpen(false);
+            }}
+            className="flex items-center gap-3 cursor-pointer overflow-hidden group"
+          >
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-md shadow-blue-600/30">
+              W
+            </div>
+            {(!sidebarCollapsed || mobileMenuOpen) && (
+              <span className="text-white text-lg font-bold tracking-tight truncate">
+                Worqester
+              </span>
+            )}
           </div>
-          {!sidebarCollapsed && (
-            <span className="text-white text-xl font-semibold tracking-tight truncate">
-              Worqester
-            </span>
-          )}
+          <div className="flex items-center gap-1">
+            {/* Mobile Close Button */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close menu"
+            >
+              <X size={18} />
+            </button>
+            {/* Desktop Collapse Button */}
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hidden md:inline-flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? <Menu size={18} /> : <X size={18} />}
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {sidebarCollapsed ? <Menu size={18} /> : <X size={18} />}
-        </button>
-      </div>
 
       {/* Quick Action Button */}
       {!sidebarCollapsed ? (
@@ -590,5 +618,6 @@ export const Sidebar: React.FC = () => {
         </div>
       </div>
     </aside>
+    </>
   );
 };

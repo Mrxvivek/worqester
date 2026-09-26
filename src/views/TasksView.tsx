@@ -45,8 +45,15 @@ export const TasksView: React.FC = () => {
   } = useApp();
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [calendarYear, setCalendarYear] = useState<number>(2026);
-  const [calendarMonth, setCalendarMonth] = useState<number>(8); // September (0-indexed)
+
+  // Dynamic Real-Time Date Tracking
+  const realNow = new Date();
+  const realYear = realNow.getFullYear();
+  const realMonth = realNow.getMonth(); // 0-indexed
+  const realTodayStr = `${realYear}-${String(realMonth + 1).padStart(2, "0")}-${String(realNow.getDate()).padStart(2, "0")}`;
+
+  const [calendarYear, setCalendarYear] = useState<number>(realYear);
+  const [calendarMonth, setCalendarMonth] = useState<number>(realMonth);
 
   const activeSubView = currentSubView || "kanban";
   const [filterProject, setFilterProject] = useState<string>("all");
@@ -65,11 +72,21 @@ export const TasksView: React.FC = () => {
 
   const taskColumns = ["Backlog", "To Do", "In Progress", "In Review", "Done"];
 
-  const todayStr = "2026-09-19";
-  const startOfWeek = "2026-09-14";
-  const endOfWeek = "2026-09-20";
-  const startOfMonth = "2026-09-01";
-  const endOfMonth = "2026-09-30";
+  // Real-time calculated date bounds
+  const currentDayOfWeek = realNow.getDay();
+  const mondayOffset = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek;
+  const monday = new Date(realNow);
+  monday.setDate(realNow.getDate() + mondayOffset);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const startOfWeek = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+  const endOfWeek = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, "0")}-${String(sunday.getDate()).padStart(2, "0")}`;
+
+  const startOfMonth = `${realYear}-${String(realMonth + 1).padStart(2, "0")}-01`;
+  const lastDayOfMonth = new Date(realYear, realMonth + 1, 0).getDate();
+  const endOfMonth = `${realYear}-${String(realMonth + 1).padStart(2, "0")}-${String(lastDayOfMonth).padStart(2, "0")}`;
+
+  const todayStr = realTodayStr;
 
   const filteredTasks = tasks
     .filter((t) => {
@@ -791,8 +808,9 @@ export const TasksView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setCalendarYear(2026);
-                    setCalendarMonth(8);
+                    const now = new Date();
+                    setCalendarYear(now.getFullYear());
+                    setCalendarMonth(now.getMonth());
                   }}
                   className="px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer ml-1"
                 >
@@ -821,23 +839,30 @@ export const TasksView: React.FC = () => {
 
                   const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
                   const dayTasks = tasks.filter((t) => t.dueDate === dateStr);
-                  const isToday = dateStr === "2026-09-17";
+                  const isToday = dateStr === realTodayStr;
 
                   return (
                     <div
                       key={`day-${dayNum}`}
                       className={`bg-white dark:bg-slate-900 p-2 min-h-[95px] flex flex-col justify-between transition-colors hover:bg-blue-50/20 dark:hover:bg-blue-950/20 ${
-                        isToday ? "ring-2 ring-blue-500 ring-inset" : ""
+                        isToday ? "ring-2 ring-blue-500 ring-inset bg-blue-50/30 dark:bg-blue-950/40" : ""
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span
-                          className={`text-xs font-bold font-mono px-1.5 py-0.5 rounded ${
-                            isToday ? "bg-blue-600 text-white" : "text-slate-700 dark:text-slate-300"
-                          }`}
-                        >
-                          {dayNum}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-xs font-bold font-mono px-1.5 py-0.5 rounded ${
+                              isToday ? "bg-blue-600 text-white shadow-xs" : "text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {dayNum}
+                          </span>
+                          {isToday && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 font-mono">
+                              Today
+                            </span>
+                          )}
+                        </div>
                         {dayTasks.length > 0 && (
                           <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
                             {dayTasks.length} {dayTasks.length === 1 ? "task" : "tasks"}

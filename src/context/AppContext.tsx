@@ -65,6 +65,8 @@ interface AppContextType {
   navigateTo: (view: string, subView?: string, entityId?: string | null) => void;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+  mobileMenuOpen: boolean;
+  setMobileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   
   // Modals & Panels
   isCreateModalOpen: boolean;
@@ -169,43 +171,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const initialNotifications: Notification[] = [
-  {
-    id: "notif-1",
-    title: "Critical Task Overdue",
-    message: "Auth Token Rotation & Session Migration has breached SLA.",
-    time: "10 mins ago",
-    read: false,
-    type: "task",
-    link: { view: "tasks", id: "task-101" },
-  },
-  {
-    id: "notif-2",
-    title: "Pending Leave Approval",
-    message: "Vikram Patel applied for 4 days Annual Leave.",
-    time: "1 hour ago",
-    read: false,
-    type: "leave",
-    link: { view: "hrm", subView: "leave" },
-  },
-  {
-    id: "notif-3",
-    title: "Deal Probability Alert",
-    message: "Acme Global Cloud Portal Migration reached 85% probability.",
-    time: "3 hours ago",
-    read: false,
-    type: "deal",
-    link: { view: "crm", subView: "deals" },
-  },
-  {
-    id: "notif-4",
-    title: "SOC2 Compliance Scan",
-    message: "Weekly automated security baseline verification completed.",
-    time: "1 day ago",
-    read: true,
-    type: "security",
-  },
-];
+const initialNotifications: Notification[] = [];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User>(() => {
@@ -221,6 +187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentSubView, setCurrentSubView] = useState("overview");
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createModalType, setCreateModalType] = useState("task");
@@ -445,6 +412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentView(view);
     setCurrentSubView(subView);
     setSelectedEntityId(entityId);
+    setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -1277,6 +1245,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRbacPermissions(StorageService.getRbacPermissions());
     setSettings(StorageService.getSettings());
     setFavorites(StorageService.getFavorites());
+    const token = AuthService.getToken();
+    fetch("/api/system/clear-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }).catch(() => {});
   };
 
   // Keyboard shortcut Ctrl+K for command palette
@@ -1312,6 +1288,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         navigateTo,
         sidebarCollapsed,
         setSidebarCollapsed,
+        mobileMenuOpen,
+        setMobileMenuOpen,
         isCreateModalOpen,
         createModalType,
         openCreateModal,

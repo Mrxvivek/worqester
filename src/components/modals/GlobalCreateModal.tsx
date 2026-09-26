@@ -54,11 +54,13 @@ export const GlobalCreateModal: React.FC = () => {
   const [dealCompanyId, setDealCompanyId] = useState(companies[0]?.id || "");
   const [dealAmount, setDealAmount] = useState(4500000);
   const [dealStage, setDealStage] = useState<any>("New");
-  const [dealExpectedClose, setDealExpectedClose] = useState("2026-10-31");
+  const [dealExpectedClose, setDealExpectedClose] = useState(
+    () => new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0]
+  );
 
   // Project Form State
   const [projectName, setProjectName] = useState("");
-  const [projectCode, setProjectCode] = useState("PRJ-2026");
+  const [projectCode, setProjectCode] = useState(`PRJ-${new Date().getFullYear()}`);
   const [projectBudget, setProjectBudget] = useState(5000000);
   const [projectPriority, setProjectPriority] = useState<any>("High");
   const [projectDesc, setProjectDesc] = useState("");
@@ -68,7 +70,9 @@ export const GlobalCreateModal: React.FC = () => {
   const [taskProjectId, setTaskProjectId] = useState(projects[0]?.id || "");
   const [taskAssigneeId, setTaskAssigneeId] = useState(currentUser.id);
   const [taskPriority, setTaskPriority] = useState<any>("High");
-  const [taskDueDate, setTaskDueDate] = useState("2026-09-15");
+  const [taskDueDate, setTaskDueDate] = useState(
+    () => new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0]
+  );
   const [taskHours, setTaskHours] = useState(16);
 
   // Employee Form State
@@ -274,7 +278,7 @@ export const GlobalCreateModal: React.FC = () => {
       maxWidth="2xl"
     >
       {/* Entity Selector Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-800 text-xs mb-5 scrollbar-none">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-200 dark:border-slate-800 text-xs mb-5 scrollbar-none">
         {[
           { id: "task", label: "Task" },
           { id: "lead", label: "Lead" },
@@ -289,10 +293,10 @@ export const GlobalCreateModal: React.FC = () => {
             key={tab.id}
             type="button"
             onClick={() => setActiveType(tab.id)}
-            className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors cursor-pointer ${
               activeType === tab.id
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-blue-600 text-white shadow-sm font-semibold"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
             {tab.label}
@@ -305,7 +309,7 @@ export const GlobalCreateModal: React.FC = () => {
         {activeType === "task" && (
           <>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                 Task Title *
               </label>
               <input
@@ -314,18 +318,18 @@ export const GlobalCreateModal: React.FC = () => {
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
                 placeholder="e.g. Implement Kafka telemetry consumers for real-time fleet"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Project *
                 </label>
                 <select
                   value={taskProjectId}
                   onChange={(e) => setTaskProjectId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
                   {projects.length === 0 ? (
                     <option value="">(Auto-create Core Operational Project)</option>
@@ -339,31 +343,37 @@ export const GlobalCreateModal: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Assignee
                 </label>
                 <select
                   value={taskAssigneeId}
                   onChange={(e) => setTaskAssigneeId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.fullName} ({e.designation})
+                  {employees.length === 0 ? (
+                    <option value={currentUser.id}>
+                      {currentUser.name} ({currentUser.role})
                     </option>
-                  ))}
+                  ) : (
+                    employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.fullName} ({e.designation})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Priority
                 </label>
                 <select
                   value={taskPriority}
                   onChange={(e) => setTaskPriority(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
                   <option value="Critical">Critical (P0)</option>
                   <option value="High">High (P1)</option>
@@ -372,25 +382,25 @@ export const GlobalCreateModal: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Due Date
                 </label>
                 <input
                   type="date"
                   value={taskDueDate}
                   onChange={(e) => setTaskDueDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Est. Hours
                 </label>
                 <input
                   type="number"
                   value={taskHours}
                   onChange={(e) => setTaskHours(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -402,7 +412,7 @@ export const GlobalCreateModal: React.FC = () => {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Lead Name *
                 </label>
                 <input
@@ -411,11 +421,11 @@ export const GlobalCreateModal: React.FC = () => {
                   value={leadName}
                   onChange={(e) => setLeadName(e.target.value)}
                   placeholder="e.g. Alok Singhania"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Company / Organization *
                 </label>
                 <input
@@ -424,13 +434,13 @@ export const GlobalCreateModal: React.FC = () => {
                   value={leadCompany}
                   onChange={(e) => setLeadCompany(e.target.value)}
                   placeholder="e.g. Apex Global Systems"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Email
                 </label>
                 <input
@@ -438,18 +448,18 @@ export const GlobalCreateModal: React.FC = () => {
                   value={leadEmail}
                   onChange={(e) => setLeadEmail(e.target.value)}
                   placeholder="alok@apexglobal.demo"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Expected Deal Value (₹)
                 </label>
                 <input
                   type="number"
                   value={leadExpectedValue}
                   onChange={(e) => setLeadExpectedValue(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -460,7 +470,7 @@ export const GlobalCreateModal: React.FC = () => {
         {activeType === "deal" && (
           <>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                 Deal Name *
               </label>
               <input
@@ -469,18 +479,18 @@ export const GlobalCreateModal: React.FC = () => {
                 value={dealName}
                 onChange={(e) => setDealName(e.target.value)}
                 placeholder="e.g. Enterprise Cloud Modernization Contract"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Target Account (Company)
                 </label>
                 <select
                   value={dealCompanyId}
                   onChange={(e) => setDealCompanyId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
                   {companies.length === 0 ? (
                     <option value="">(Auto-create Primary Enterprise Account)</option>
@@ -494,26 +504,26 @@ export const GlobalCreateModal: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Deal Value (₹)
                 </label>
                 <input
                   type="number"
                   value={dealAmount}
                   onChange={(e) => setDealAmount(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Pipeline Stage
                 </label>
                 <select
                   value={dealStage}
                   onChange={(e) => setDealStage(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
                   <option value="New">New</option>
                   <option value="Qualification">Qualification</option>
@@ -525,14 +535,14 @@ export const GlobalCreateModal: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Expected Close Date
                 </label>
                 <input
                   type="date"
                   value={dealExpectedClose}
                   onChange={(e) => setDealExpectedClose(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -544,7 +554,7 @@ export const GlobalCreateModal: React.FC = () => {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Project Title *
                 </label>
                 <input
@@ -553,41 +563,41 @@ export const GlobalCreateModal: React.FC = () => {
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
                   placeholder="e.g. NextGen Microservices Refactor"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Project Code
                 </label>
                 <input
                   type="text"
                   value={projectCode}
                   onChange={(e) => setProjectCode(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Allocated Budget (₹)
                 </label>
                 <input
                   type="number"
                   value={projectBudget}
                   onChange={(e) => setProjectBudget(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Priority
                 </label>
                 <select
                   value={projectPriority}
                   onChange={(e) => setProjectPriority(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
                   <option value="Critical">Critical</option>
                   <option value="High">High</option>
@@ -597,7 +607,7 @@ export const GlobalCreateModal: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                 Description & Scope
               </label>
               <textarea
@@ -605,7 +615,7 @@ export const GlobalCreateModal: React.FC = () => {
                 value={projectDesc}
                 onChange={(e) => setProjectDesc(e.target.value)}
                 placeholder="Key deliverables, timeline expectations, architectural objectives..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </>
@@ -616,7 +626,7 @@ export const GlobalCreateModal: React.FC = () => {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   First Name *
                 </label>
                 <input
@@ -625,11 +635,11 @@ export const GlobalCreateModal: React.FC = () => {
                   value={empFirstName}
                   onChange={(e) => setEmpFirstName(e.target.value)}
                   placeholder="e.g. Rohit"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Last Name *
                 </label>
                 <input
@@ -638,19 +648,19 @@ export const GlobalCreateModal: React.FC = () => {
                   value={empLastName}
                   onChange={(e) => setEmpLastName(e.target.value)}
                   placeholder="e.g. Gupta"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Department
                 </label>
                 <select
                   value={empDept}
                   onChange={(e) => setEmpDept(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
                   {departments.map((d) => (
                     <option key={d.id} value={d.name}>
@@ -660,7 +670,7 @@ export const GlobalCreateModal: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Designation / Role
                 </label>
                 <input
@@ -668,7 +678,7 @@ export const GlobalCreateModal: React.FC = () => {
                   value={empDesignation}
                   onChange={(e) => setEmpDesignation(e.target.value)}
                   placeholder="Senior Software Engineer"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
@@ -680,13 +690,13 @@ export const GlobalCreateModal: React.FC = () => {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Leave Category
                 </label>
                 <select
                   value={leaveType}
                   onChange={(e) => setLeaveType(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
                   <option value="Casual">Casual Leave</option>
                   <option value="Sick">Sick Leave</option>
@@ -696,7 +706,7 @@ export const GlobalCreateModal: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Number of Days
                 </label>
                 <input
@@ -705,12 +715,12 @@ export const GlobalCreateModal: React.FC = () => {
                   max="30"
                   value={leaveDays}
                   onChange={(e) => setLeaveDays(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                 Reason
               </label>
               <textarea
@@ -718,7 +728,7 @@ export const GlobalCreateModal: React.FC = () => {
                 value={leaveReason}
                 onChange={(e) => setLeaveReason(e.target.value)}
                 placeholder="Provide brief context for approving manager..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </>
@@ -729,13 +739,13 @@ export const GlobalCreateModal: React.FC = () => {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Expense Category
                 </label>
                 <select
                   value={expCategory}
                   onChange={(e) => setExpCategory(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 >
                   <option value="Travel">Travel & Transit</option>
                   <option value="Food">Food & Meals</option>
@@ -745,19 +755,19 @@ export const GlobalCreateModal: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Amount (₹)
                 </label>
                 <input
                   type="number"
                   value={expAmount}
                   onChange={(e) => setExpAmount(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                 Description & Purpose
               </label>
               <input
@@ -765,7 +775,7 @@ export const GlobalCreateModal: React.FC = () => {
                 value={expDesc}
                 onChange={(e) => setExpDesc(e.target.value)}
                 placeholder="Dinner with Acme CTO / flight to Mumbai client office"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </>
@@ -775,7 +785,7 @@ export const GlobalCreateModal: React.FC = () => {
         {activeType === "note" && (
           <>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                 Note Title *
               </label>
               <input
@@ -784,11 +794,11 @@ export const GlobalCreateModal: React.FC = () => {
                 value={noteTitle}
                 onChange={(e) => setNoteTitle(e.target.value)}
                 placeholder="e.g. Q4 Executive Strategy Sync"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
+              <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                 Content
               </label>
               <textarea
@@ -796,24 +806,24 @@ export const GlobalCreateModal: React.FC = () => {
                 value={noteContent}
                 onChange={(e) => setNoteContent(e.target.value)}
                 placeholder="Record notes, action items, dependencies..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
           </>
         )}
 
         {/* Action Buttons */}
-        <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2.5">
+        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
           <button
             type="button"
             onClick={closeCreateModal}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
+            className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/30 transition-all active:scale-95"
+            className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/30 transition-all active:scale-95 cursor-pointer"
           >
             Create {activeType.charAt(0).toUpperCase() + activeType.slice(1)}
           </button>

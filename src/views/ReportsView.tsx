@@ -41,9 +41,9 @@ export const ReportsView: React.FC = () => {
   const { deals, projects, tasks, employees, departments, settings } = useApp();
 
   // Range and filter state
-  const [rangePreset, setRangePreset] = useState<RangePreset>("30d");
-  const [startDate, setStartDate] = useState("2026-08-20");
-  const [endDate, setEndDate] = useState("2026-09-19");
+  const [rangePreset, setRangePreset] = useState<RangePreset>("all");
+  const [startDate, setStartDate] = useState("2020-01-01");
+  const [endDate, setEndDate] = useState("2030-12-31");
   const [selectedDept, setSelectedDept] = useState("all");
   const [selectedProject, setSelectedProject] = useState("all");
   const [reportGeneratedTime, setReportGeneratedTime] = useState<string>("Just now");
@@ -52,25 +52,30 @@ export const ReportsView: React.FC = () => {
   // Handle Preset Changes
   const handlePresetChange = (preset: RangePreset) => {
     setRangePreset(preset);
-    const today = "2026-09-19";
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
     if (preset === "today") {
       setStartDate(today);
       setEndDate(today);
     } else if (preset === "7d") {
-      setStartDate("2026-09-12");
+      const d = new Date(now.getTime() - 7 * 86400000).toISOString().split("T")[0];
+      setStartDate(d);
       setEndDate(today);
     } else if (preset === "30d") {
-      setStartDate("2026-08-20");
+      const d = new Date(now.getTime() - 30 * 86400000).toISOString().split("T")[0];
+      setStartDate(d);
       setEndDate(today);
     } else if (preset === "quarter") {
-      setStartDate("2026-07-01");
+      const qMonth = Math.floor(now.getMonth() / 3) * 3;
+      const d = new Date(now.getFullYear(), qMonth, 1).toISOString().split("T")[0];
+      setStartDate(d);
       setEndDate(today);
     } else if (preset === "ytd") {
-      setStartDate("2026-01-01");
+      setStartDate(`${now.getFullYear()}-01-01`);
       setEndDate(today);
     } else if (preset === "all") {
-      setStartDate("2025-01-01");
-      setEndDate("2026-12-31");
+      setStartDate("2020-01-01");
+      setEndDate("2030-12-31");
     }
   };
 
@@ -183,17 +188,27 @@ export const ReportsView: React.FC = () => {
   }, [filteredProjects]);
 
   // Monthly revenue trend
-  const monthlyRevData = [
-    { month: "Jan", revenue: 3200000, target: 3000000 },
-    { month: "Feb", revenue: 4100000, target: 3500000 },
-    { month: "Mar", revenue: 4800000, target: 4000000 },
-    { month: "Apr", revenue: 4200000, target: 4500000 },
-    { month: "May", revenue: 5800000, target: 5000000 },
-    { month: "Jun", revenue: 7100000, target: 6000000 },
-    { month: "Jul", revenue: 6400000, target: 6500000 },
-    { month: "Aug", revenue: 8900000, target: 7000000 },
-    { month: "Sep", revenue: 11400000, target: 8000000 },
-  ];
+  const monthlyRevData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"];
+    const buckets: Record<string, number> = {};
+    months.forEach((m) => {
+      buckets[m] = 0;
+    });
+    const allMonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    filteredDeals.forEach((d) => {
+      const dt = d.expectedCloseDate ? new Date(d.expectedCloseDate) : new Date();
+      const mName = allMonthNames[dt.getMonth()] || "Sep";
+      const targetKey = buckets[mName] !== undefined ? mName : "Sep";
+      if (d.stage === "Closed Won") {
+        buckets[targetKey] += Number(d.amount) || 0;
+      }
+    });
+    return months.map((month) => ({
+      month,
+      revenue: buckets[month],
+      target: filteredDeals.length > 0 ? Math.max(buckets[month], 1000000) : 0,
+    }));
+  }, [filteredDeals]);
 
   // Export Real CSV with Filtered Report Data
   const exportReport = () => {

@@ -760,4 +760,15 @@ export async function runMigrations(db: DatabaseAdapter): Promise<void> {
     });
     console.log("[Database Migration] Successfully applied 003_add_task_comments_notes_and_fields.");
   }
+
+  if (!applied.has("004_add_crm_and_invitation_display_columns")) {
+    console.log("[Database Migration] Applying 004_add_crm_and_invitation_display_columns...");
+    await db.transaction(async (tx) => {
+      await addColumnIfNotExists(tx, "deals", "owner_name", "VARCHAR(255)");
+      await addColumnIfNotExists(tx, "leads", "assigned_to", "VARCHAR(255)");
+      await addColumnIfNotExists(tx, "invitations", "invited_by", "VARCHAR(255)");
+      await tx.execute("INSERT INTO schema_migrations (version) VALUES (?)", ["004_add_crm_and_invitation_display_columns"]);
+    });
+    console.log("[Database Migration] Successfully applied 004_add_crm_and_invitation_display_columns.");
+  }
 }

@@ -50,33 +50,46 @@ import {
 } from "../types";
 
 const STORAGE_KEYS = {
-  USERS: "worqester_users_v1",
-  CURRENT_USER_ID: "worqester_current_user_v1",
-  SETTINGS: "worqester_settings_v1",
-  COMPANIES: "worqester_companies_v1",
-  CONTACTS: "worqester_contacts_v1",
-  LEADS: "worqester_leads_v1",
-  DEALS: "worqester_deals_v1",
-  PROJECTS: "worqester_projects_v1",
-  TASKS: "worqester_tasks_v1",
-  DEPARTMENTS: "worqester_departments_v1",
-  EMPLOYEES: "worqester_employees_v1",
-  ATTENDANCE: "worqester_attendance_v1",
-  LEAVES: "worqester_leaves_v1",
-  POSITIONS: "worqester_positions_v1",
-  CANDIDATES: "worqester_candidates_v1",
-  EXPENSES: "worqester_expenses_v1",
-  ASSETS: "worqester_assets_v1",
-  DOCUMENTS: "worqester_documents_v1",
-  NOTES: "worqester_notes_v1",
-  ACTIVITIES: "worqester_activities_v1",
-  AUDIT_LOGS: "worqester_audit_logs_v1",
-  AUTOMATIONS: "worqester_automations_v1",
-  FAVORITES: "worqester_favorites_v1",
-  MILESTONES: "worqester_milestones_v1",
-  INVITATIONS: "worqester_invitations_v1",
-  RBAC_PERMISSIONS: "worqester_rbac_permissions_v1",
+  USERS: "worqester_users_v2",
+  CURRENT_USER_ID: "worqester_current_user_v2",
+  SETTINGS: "worqester_settings_v2",
+  COMPANIES: "worqester_companies_v2",
+  CONTACTS: "worqester_contacts_v2",
+  LEADS: "worqester_leads_v2",
+  DEALS: "worqester_deals_v2",
+  PROJECTS: "worqester_projects_v2",
+  TASKS: "worqester_tasks_v2",
+  DEPARTMENTS: "worqester_departments_v2",
+  EMPLOYEES: "worqester_employees_v2",
+  ATTENDANCE: "worqester_attendance_v2",
+  LEAVES: "worqester_leaves_v2",
+  POSITIONS: "worqester_positions_v2",
+  CANDIDATES: "worqester_candidates_v2",
+  EXPENSES: "worqester_expenses_v2",
+  ASSETS: "worqester_assets_v2",
+  DOCUMENTS: "worqester_documents_v2",
+  NOTES: "worqester_notes_v2",
+  ACTIVITIES: "worqester_activities_v2",
+  AUDIT_LOGS: "worqester_audit_logs_v2",
+  AUTOMATIONS: "worqester_automations_v2",
+  FAVORITES: "worqester_favorites_v2",
+  MILESTONES: "worqester_milestones_v2",
+  INVITATIONS: "worqester_invitations_v2",
+  RBAC_PERMISSIONS: "worqester_rbac_permissions_v2",
 };
+
+// Purge legacy v1 demo seed keys from localStorage if present
+try {
+  if (typeof window !== "undefined" && window.localStorage) {
+    Object.keys(window.localStorage).forEach((k) => {
+      if (k.startsWith("worqester_") && k.endsWith("_v1")) {
+        window.localStorage.removeItem(k);
+      }
+    });
+  }
+} catch {
+  // Ignore storage access errors
+}
 
 export class StorageService {
   private static load<T>(key: string, fallback: T): T {
@@ -229,6 +242,10 @@ export class StorageService {
     return this.load(STORAGE_KEYS.DEPARTMENTS, initialDepartments);
   }
 
+  static saveDepartments(items: Department[]): void {
+    this.save(STORAGE_KEYS.DEPARTMENTS, items);
+  }
+
   static getEmployees(): Employee[] {
     return this.load(STORAGE_KEYS.EMPLOYEES, initialEmployees);
   }
@@ -340,7 +357,7 @@ export class StorageService {
   }
 
   static getFavorites(): string[] {
-    return this.load(STORAGE_KEYS.FAVORITES, ["comp-01", "proj-01", "deal-01"]);
+    return this.load(STORAGE_KEYS.FAVORITES, []);
   }
 
   static toggleFavorite(id: string): void {

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
+  Menu,
   Search,
   Plus,
   Bell,
@@ -43,6 +44,7 @@ export const Topbar: React.FC = () => {
     navigateTo,
     currentView,
     kpis,
+    setMobileMenuOpen,
   } = useApp();
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -93,38 +95,63 @@ export const Topbar: React.FC = () => {
 
   return (
     <header
-      className={`h-16 sticky top-0 z-20 px-6 sm:px-8 flex items-center justify-between gap-4 transition-colors duration-200 ${
+      className={`h-16 sticky top-0 z-20 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-2 sm:gap-4 transition-colors duration-200 ${
         isDark
           ? "bg-slate-900/95 border-b border-slate-800 text-white backdrop-blur-md shadow-sm"
           : "bg-white border-b border-slate-200 text-slate-900 shadow-2xs"
       }`}
     >
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-3 text-sm font-medium">
+      {/* Left: Mobile Drawer Trigger + Brand & Breadcrumbs */}
+      <div className="flex items-center gap-2 sm:gap-3 text-sm font-medium min-w-0">
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(true)}
+          className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          title="Open Menu"
+        >
+          <Menu size={20} />
+        </button>
+
+        {/* Brand Header */}
+        <div
+          onClick={() => navigateTo("dashboard")}
+          className="flex items-center gap-2 shrink-0 cursor-pointer group"
+        >
+          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-xs">
+            W
+          </div>
+          <span className="font-bold text-slate-900 dark:text-white tracking-tight text-sm">
+            Worqester
+          </span>
+        </div>
+
+        <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">/</span>
+
         <span className={`hidden sm:inline ${isDark ? "text-slate-400" : "text-slate-500"}`}>
           Global Workspace
         </span>
-        <span className={`hidden sm:inline ${isDark ? "text-slate-600" : "text-slate-300"}`}>/</span>
-        <span className={`font-semibold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+        <span className="text-slate-300 dark:text-slate-700 hidden md:inline">/</span>
+        <span className={`font-semibold tracking-tight truncate hidden md:inline ${isDark ? "text-white" : "text-slate-900"}`}>
           {viewLabels[currentView] || "System Monitor"}
         </span>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Search Input / Command Palette Trigger */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setIsCommandPaletteOpen(true)}
-            className={`flex items-center justify-between pl-9 pr-3 py-1.5 rounded-full text-xs transition-colors w-40 sm:w-60 border cursor-pointer ${
+            className={`flex items-center justify-center sm:justify-between px-2.5 sm:pl-9 sm:pr-3 py-1.5 rounded-full text-xs transition-colors w-9 sm:w-56 lg:w-64 border cursor-pointer ${
               isDark
                 ? "bg-slate-800/90 hover:bg-slate-800 text-slate-300 border-slate-700/60"
                 : "bg-slate-100 hover:bg-slate-200/70 text-slate-600 border-transparent"
             }`}
+            title="Search (Ctrl+K)"
           >
-            <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-400" : "text-slate-400"}`} />
-            <span className="truncate">Quick search...</span>
+            <Search size={14} className={`sm:absolute sm:left-3 sm:top-1/2 sm:-translate-y-1/2 ${isDark ? "text-slate-400" : "text-slate-400"}`} />
+            <span className="hidden sm:inline truncate">Quick search...</span>
             <kbd
               className={`hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.5 rounded shadow-2xs ${
                 isDark
@@ -157,57 +184,73 @@ export const Topbar: React.FC = () => {
                   : "bg-white border-slate-200 text-slate-900"
               }`}
             >
-              <div className="text-[10px] font-bold text-slate-400 px-2.5 py-1 uppercase tracking-wider">
+              <div className={`text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                 Quick Actions
               </div>
               <button
                 onClick={() => { openCreateModal("lead"); setIsCreateDropdownOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                  isDark ? "text-slate-200 hover:text-white hover:bg-slate-800" : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                }`}
               >
-                <Briefcase size={14} className="text-blue-600" /> New Lead
+                <Briefcase size={14} className="text-blue-500 shrink-0" /> New Lead
               </button>
               <button
                 onClick={() => { openCreateModal("deal"); setIsCreateDropdownOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                  isDark ? "text-slate-200 hover:text-white hover:bg-slate-800" : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                }`}
               >
-                <DollarSign size={14} className="text-emerald-600" /> New Deal
+                <DollarSign size={14} className="text-emerald-500 shrink-0" /> New Deal
               </button>
               <button
                 onClick={() => { openCreateModal("project"); setIsCreateDropdownOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                  isDark ? "text-slate-200 hover:text-white hover:bg-slate-800" : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                }`}
               >
-                <Layers size={14} className="text-purple-600" /> New Project
+                <Layers size={14} className="text-purple-500 shrink-0" /> New Project
               </button>
               <button
                 onClick={() => { openCreateModal("task"); setIsCreateDropdownOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                  isDark ? "text-slate-200 hover:text-white hover:bg-slate-800" : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                }`}
               >
-                <Clock size={14} className="text-amber-600" /> New Task
+                <Clock size={14} className="text-amber-500 shrink-0" /> New Task
               </button>
-              <div className="my-1 border-t border-slate-100"></div>
+              <div className={`my-1 border-t ${isDark ? "border-slate-800" : "border-slate-100"}`}></div>
               <button
                 onClick={() => { openCreateModal("employee"); setIsCreateDropdownOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                  isDark ? "text-slate-200 hover:text-white hover:bg-slate-800" : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                }`}
               >
-                <UserPlus size={14} className="text-indigo-600" /> New Employee
+                <UserPlus size={14} className="text-indigo-500 shrink-0" /> New Employee
               </button>
               <button
                 onClick={() => { openCreateModal("company"); setIsCreateDropdownOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                  isDark ? "text-slate-200 hover:text-white hover:bg-slate-800" : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                }`}
               >
-                <Building size={14} className="text-teal-600" /> New Company
+                <Building size={14} className="text-teal-500 shrink-0" /> New Company
               </button>
               <button
                 onClick={() => { openCreateModal("leave"); setIsCreateDropdownOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                  isDark ? "text-slate-200 hover:text-white hover:bg-slate-800" : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                }`}
               >
-                <FileText size={14} className="text-pink-600" /> New Leave Request
+                <FileText size={14} className="text-pink-500 shrink-0" /> New Leave Request
               </button>
               <button
                 onClick={() => { openCreateModal("note"); setIsCreateDropdownOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                  isDark ? "text-slate-200 hover:text-white hover:bg-slate-800" : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                }`}
               >
-                <BookOpen size={14} className="text-sky-600" /> New Note
+                <BookOpen size={14} className="text-sky-500 shrink-0" /> New Note
               </button>
             </div>
           )}

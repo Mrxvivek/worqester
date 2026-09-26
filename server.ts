@@ -1393,32 +1393,48 @@ ${JSON.stringify(context || {}).slice(0, 15000)}
 
 app.post("/api/ai/audit", requireAuth, async (req: any, res) => {
   try {
-    const risks = [
-      {
-        id: "risk-01",
-        severity: "High",
+    const db = await getDatabase();
+    const workspaceId = req.user.workspace_id || "org-worqester-01";
+    const risks: Array<{
+      id: string;
+      severity: string;
+      category: string;
+      issue: string;
+      impact: string;
+      recommendedAction: string;
+    }> = [];
+
+    const riskyProjects = await db.query<any>(
+      "SELECT id, name, code, health, budget, spent FROM projects WHERE workspace_id = ? AND (health = 'At Risk' OR health = 'Critical' OR health = 'Watch')",
+      [workspaceId]
+    );
+    for (const p of riskyProjects) {
+      const burnPct = p.budget > 0 ? ((Number(p.spent) / Number(p.budget)) * 100).toFixed(1) : "0.0";
+      risks.push({
+        id: `risk-proj-${p.id}`,
+        severity: p.health === "Critical" ? "Critical" : "High",
         category: "Projects",
-        issue: "Critical Project At Risk (CIM-2026)",
-        impact: "Budget burn is currently at 64.6% with 3 pending deliverable milestones.",
-        recommendedAction: "Review vendor milestone sign-off and rebalance senior developer allocations.",
-      },
-      {
-        id: "risk-02",
-        severity: "High",
-        category: "Revenue",
-        issue: "Stalled Enterprise Deal in Negotiation",
-        impact: "₹54.0 L Enterprise Deal with Acme Technologies untouched for 8 days.",
-        recommendedAction: "Send automated executive follow-up note and review pricing tier.",
-      },
-      {
-        id: "risk-03",
+        issue: `Project ${p.health}: ${p.name} (${p.code})`,
+        impact: `Budget burn is currently at ${burnPct}%.`,
+        recommendedAction: "Review milestone sign-off and rebalance resource allocations.",
+      });
+    }
+
+    const pendingExpenses = await db.query<any>(
+      "SELECT COUNT(*) as count FROM expenses WHERE workspace_id = ? AND status = 'Pending'",
+      [workspaceId]
+    );
+    const pendingExpCount = Number(pendingExpenses[0]?.count) || 0;
+    if (pendingExpCount > 0) {
+      risks.push({
+        id: "risk-expenses",
         severity: "Medium",
         category: "HR",
-        issue: "Hardware Reimbursement Approvals Pending",
+        issue: `${pendingExpCount} Reimbursement Claim(s) Pending`,
         impact: "Employee expense claims awaiting manager sign-off.",
         recommendedAction: "Review and approve pending expenses under HRM Claims.",
-      },
-    ];
+      });
+    }
 
     return res.json({
       success: true,
@@ -1431,23 +1447,61 @@ app.post("/api/ai/audit", requireAuth, async (req: any, res) => {
   }
 });
 
+app.post("/api/system/clear-data", requireAuth, async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const workspaceId = req.user.workspace_id || "org-worqester-01";
+    const tables = [
+      "task_comments",
+      "tasks",
+      "milestones",
+      "projects",
+      "deals",
+      "leads",
+      "contacts",
+      "companies",
+      "assets",
+      "expenses",
+      "candidates",
+      "employees",
+      "invitations",
+      "audit_logs",
+    ];
+    for (const table of tables) {
+      try {
+        if (table === "task_comments") {
+          await db.execute("DELETE FROM task_comments");
+        } else {
+          await db.execute(`DELETE FROM ${table} WHERE workspace_id = ?`, [workspaceId]);
+        }
+      } catch {
+        // Ignore if table does not have workspace_id or doesn't exist
+      }
+    }
+    return res.json({ success: true, message: "All workspace business records cleared." });
+  } catch (error: any) {
+    console.error("Clear data error:", error);
+    return res.status(500).json({ success: false, error: "Failed to clear workspace data." });
+  }
+});
+
 // ----------------------------------------------------
 // Static files & Server Bootstrap
 // ----------------------------------------------------
 async function startServer() {
   const db = await getDatabase();
 
-  // Auto-seed development database if empty
+  // Initialize workspace & default login accounts if database has 0 users
   try {
     const userCountRes = await db.query<{ count: number }>("SELECT COUNT(*) as count FROM users");
     const userCount = Number(userCountRes[0]?.count) || 0;
-    if (userCount === 0 && process.env.NODE_ENV !== "production") {
-      console.log("[Bootstrap] Fresh database detected (0 users). Auto-seeding initial workspace & demo accounts...");
+    if (userCount === 0) {
+      console.log("[Bootstrap] Fresh database detected (0 users). Initializing clean workspace & accounts...");
       await seedDatabase(db, true);
-      console.log("[Bootstrap] Auto-seed complete. Demo credentials are ready to use.");
+      console.log("[Bootstrap] Clean workspace initialization complete.");
     }
   } catch (seedErr) {
-    console.warn("[Bootstrap] Auto-seed check warning:", seedErr);
+    console.warn("[Bootstrap] Initialization check warning:", seedErr);
   }
 
   if (process.env.NODE_ENV !== "production") {

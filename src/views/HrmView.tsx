@@ -484,65 +484,115 @@ export const HrmView: React.FC = () => {
       )}
 
       {/* VIEW: LEAVE MANAGEMENT */}
-      {activeSubView === "leave" && (
-        <div className="space-y-4">
-          {(leaves || []).length === 0 ? (
-            <div className="text-center py-12 text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
-              No leave requests submitted yet.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(leaves || []).map((lv) => (
-              <div
-                key={lv.id}
-                className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800/80 text-xs space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-white text-sm">{lv.employeeName}</h4>
-                    <span className="text-[11px] text-slate-400">
-                      {lv.type} Leave • {lv.days} Working Days
-                    </span>
-                  </div>
-                  <StatusBadge status={lv.status} size="sm" />
-                </div>
+      {activeSubView === "leave" && (() => {
+        const displayedLeaves = isEmployee
+          ? (leaves || []).filter((l) => l.employeeName === currentUser.name || l.employeeId === currentUser.id)
+          : (leaves || []);
 
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/60 text-slate-300">
-                  <span className="font-semibold text-slate-400 block text-[10px] uppercase mb-0.5">
-                    Reason
-                  </span>
-                  {lv.reason}
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                  <span>
-                    {lv.startDate} to {lv.endDate}
-                  </span>
-                  {lv.status === "Pending" && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateLeaveStatus(lv.id, "Approved")}
-                        className="px-3 py-1 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 text-xs font-semibold transition-colors"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateLeaveStatus(lv.id, "Rejected")}
-                        className="px-3 py-1 rounded-lg bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-500/30 text-xs font-semibold transition-colors"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
-                </div>
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {isEmployee ? "My Leave Applications" : `Leave Requests (${displayedLeaves.length})`}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isEmployee
+                    ? "Track and manage your submitted absence requests"
+                    : "Review, approve, or reject employee leave requests"}
+                </p>
               </div>
-            ))}
+              <button
+                type="button"
+                onClick={() => openCreateModal("leave")}
+                className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Plus size={14} />
+                <span>Apply for Leave</span>
+              </button>
             </div>
-          )}
-        </div>
-      )}
+
+            {displayedLeaves.length === 0 ? (
+              <div className="text-center py-12 text-xs text-slate-500 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/40">
+                {isEmployee
+                  ? "You have not submitted any leave applications yet. Click 'Apply for Leave' above to submit a request."
+                  : "No leave requests submitted yet."}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {displayedLeaves.map((lv) => (
+                  <div
+                    key={lv.id}
+                    className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 text-xs space-y-3 shadow-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">{lv.employeeName}</h4>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {lv.type} Leave • {lv.days} Working Days
+                        </span>
+                      </div>
+                      <StatusBadge status={lv.status} size="sm" />
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                      <span className="font-bold text-slate-500 dark:text-slate-400 block text-[10px] uppercase mb-0.5 tracking-wide">
+                        Reason
+                      </span>
+                      <p className="font-medium text-xs leading-relaxed">{lv.reason}</p>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 font-mono">
+                      <span>
+                        {lv.startDate} to {lv.endDate}
+                      </span>
+
+                      {/* Employee role: Can ONLY withdraw/cancel their own pending request */}
+                      {isEmployee ? (
+                        lv.status === "Pending" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to withdraw this pending leave request?")) {
+                                deleteItem("leaves", lv.id);
+                              }
+                            }}
+                            className="px-3 py-1 rounded-lg bg-rose-50 dark:bg-rose-600/20 text-rose-700 dark:text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-200 dark:border-rose-500/30 text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 size={12} />
+                            <span>Withdraw Request</span>
+                          </button>
+                        )
+                      ) : (
+                        /* Manager/Admin role: Can Approve or Reject */
+                        lv.status === "Pending" && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => updateLeaveStatus(lv.id, "Approved")}
+                              className="px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-300 dark:border-emerald-500/30 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                            >
+                              <Check size={12} />
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateLeaveStatus(lv.id, "Rejected")}
+                              className="px-3 py-1 rounded-lg bg-rose-50 dark:bg-rose-600/20 text-rose-700 dark:text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-300 dark:border-rose-500/30 text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* VIEW: RECRUITMENT ATS */}
       {activeSubView === "recruitment" && (
@@ -861,50 +911,81 @@ export const HrmView: React.FC = () => {
             </button>
           </div>
 
-          {(expenses || []).length === 0 ? (
-            <div className="text-center py-12 text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
-              No expense claims submitted yet. Click "+ Submit Claim" above to file an expense.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(expenses || []).map((exp) => (
-                <div
-                  key={exp.id}
-                  className="p-4 rounded-xl bg-slate-900/90 border border-slate-800/80 text-xs space-y-2.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white">{exp.employeeName}</span>
-                    <StatusBadge status={exp.status} size="sm" />
-                  </div>
-                  <div className="text-slate-300">{exp.description}</div>
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 font-mono">
-                    <span className="text-slate-500">{exp.category} • {exp.date}</span>
-                    <strong className="text-emerald-400 text-sm">{formatCurrency(exp.amount, settings?.currency || "INR", settings?.currencySymbol || "₹")}</strong>
-                  </div>
+          {(() => {
+            const displayedExpenses = isEmployee
+              ? (expenses || []).filter((e) => e.employeeName === currentUser.name || e.employeeId === currentUser.id)
+              : (expenses || []);
 
-                  {exp.status === "Pending" && (
-                    <div className="flex items-center gap-2 pt-1 border-t border-slate-800/40">
-                      <button
-                        type="button"
-                        onClick={() => updateExpenseStatus(exp.id, "Approved")}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <Check size={11} />
-                        <span>Approve</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateExpenseStatus(exp.id, "Rejected")}
-                        className="px-2.5 py-1 rounded-lg bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-500/30 text-[10px] font-semibold transition-colors cursor-pointer"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
+            if (displayedExpenses.length === 0) {
+              return (
+                <div className="text-center py-12 text-xs text-slate-500 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/40">
+                  {isEmployee
+                    ? "You have not submitted any expense claims yet. Click '+ Submit Claim' above to file an expense."
+                    : "No expense claims submitted yet."}
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {displayedExpenses.map((exp) => (
+                  <div
+                    key={exp.id}
+                    className="p-4 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 text-xs space-y-2.5 shadow-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 dark:text-white">{exp.employeeName}</span>
+                      <StatusBadge status={exp.status} size="sm" />
+                    </div>
+                    <div className="text-slate-600 dark:text-slate-300">{exp.description}</div>
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60 font-mono">
+                      <span className="text-slate-500">{exp.category} • {exp.date}</span>
+                      <strong className="text-emerald-600 dark:text-emerald-400 text-sm">
+                        {formatCurrency(exp.amount, settings?.currency || "INR", settings?.currencySymbol || "₹")}
+                      </strong>
+                    </div>
+
+                    {exp.status === "Pending" && (
+                      <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/40">
+                        {isEmployee ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to withdraw this pending expense claim?")) {
+                                deleteItem("expenses", exp.id);
+                              }
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-600/20 text-rose-700 dark:text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-200 dark:border-rose-500/30 text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 size={11} />
+                            <span>Withdraw Claim</span>
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => updateExpenseStatus(exp.id, "Approved")}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-300 dark:border-emerald-500/30 text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
+                            >
+                              <Check size={11} />
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateExpenseStatus(exp.id, "Rejected")}
+                              className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-600/20 text-rose-700 dark:text-rose-300 hover:bg-rose-600 hover:text-white border border-rose-300 dark:border-rose-500/30 text-[10px] font-semibold transition-colors cursor-pointer shadow-xs"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
