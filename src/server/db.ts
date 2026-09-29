@@ -771,4 +771,21 @@ export async function runMigrations(db: DatabaseAdapter): Promise<void> {
     });
     console.log("[Database Migration] Successfully applied 004_add_crm_and_invitation_display_columns.");
   }
+
+  if (!applied.has("005_add_employee_eid_work_personal_email_and_team")) {
+    console.log("[Database Migration] Applying 005_add_employee_eid_work_personal_email_and_team...");
+    await db.transaction(async (tx) => {
+      await addColumnIfNotExists(tx, "employees", "e_id", "VARCHAR(64)");
+      await addColumnIfNotExists(tx, "employees", "work_email", "VARCHAR(255)");
+      await addColumnIfNotExists(tx, "employees", "personal_email", "VARCHAR(255) DEFAULT ''");
+      await addColumnIfNotExists(tx, "employees", "team", "VARCHAR(128) DEFAULT ''");
+      await addColumnIfNotExists(tx, "employees", "phone", "VARCHAR(64) DEFAULT ''");
+      await addColumnIfNotExists(tx, "employees", "status", "VARCHAR(64) DEFAULT 'Active'");
+      await tx.execute("UPDATE employees SET e_id = employee_number WHERE e_id IS NULL OR e_id = ''").catch(() => {});
+      await tx.execute("UPDATE employees SET work_email = email WHERE work_email IS NULL OR work_email = ''").catch(() => {});
+      await tx.execute("UPDATE employees SET team = designation WHERE team IS NULL OR team = ''").catch(() => {});
+      await tx.execute("INSERT INTO schema_migrations (version) VALUES (?)", ["005_add_employee_eid_work_personal_email_and_team"]);
+    });
+    console.log("[Database Migration] Successfully applied 005_add_employee_eid_work_personal_email_and_team.");
+  }
 }

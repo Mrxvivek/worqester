@@ -872,24 +872,35 @@ app.get("/api/hrm/employees", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const rows = await db.query<any>(
-      `SELECT id, full_name as "fullName", email, employee_number as "employeeNumber",
-              department, designation, salary_basic as "salaryBasic",
+      `SELECT id, full_name as "fullName", email,
+              COALESCE(NULLIF(work_email, ''), email) as "workEmail",
+              COALESCE(personal_email, '') as "personalEmail",
+              employee_number as "employeeNumber",
+              COALESCE(NULLIF(e_id, ''), employee_number) as "eId",
+              department, designation,
+              COALESCE(NULLIF(team, ''), designation) as "team",
+              COALESCE(NULLIF(phone, ''), '+91 98000 00000') as "phone",
+              COALESCE(NULLIF(status, ''), 'Active') as "status",
+              salary_basic as "salaryBasic",
               bank_account_masked as "bankAccountMasked", work_mode as "workMode", location, created_at as "createdAt"
-       FROM employees WHERE workspace_id = ? ORDER BY employee_number ASC, full_name ASC`,
+       FROM employees WHERE workspace_id = ? ORDER BY COALESCE(NULLIF(e_id, ''), employee_number) ASC, full_name ASC`,
       [req.workspaceId]
     );
     const employees = rows.map((r: any) => ({
       ...r,
+      eId: r.eId || r.employeeNumber,
+      employeeNumber: r.eId || r.employeeNumber,
+      workEmail: r.workEmail || r.email,
+      email: r.workEmail || r.email,
+      personalEmail: r.personalEmail || "",
+      team: r.team || r.designation,
       organizationId: req.workspaceId,
       firstName: r.fullName ? r.fullName.split(" ")[0] : "",
       lastName: r.fullName ? r.fullName.split(" ").slice(1).join(" ") : "",
-      phone: "+91 98000 00000",
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(r.fullName || "User")}&background=2563eb&color=fff&bold=true`,
-      team: r.designation,
       employmentType: "Full Time",
       joiningDate: (r.createdAt || new Date().toISOString()).split("T")[0],
-      status: "Active",
-      skills: [r.designation],
+      skills: [r.team || r.designation],
       capacityHoursPerWeek: 40,
       loggedHoursThisWeek: 0,
       leaveBalanceDays: 18,
@@ -900,34 +911,74 @@ app.get("/api/hrm/employees", requireAuth, async (req: any, res) => {
   }
 });
 
-app.post("/api/hrm/employees", requireAuth, requireRole(["Admin", "HR Manager", "Super Admin"]), async (req: any, res) => {
+app.post("/api/hrm/employees", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const e = req.body;
     const id = e.id || `emp-${Date.now().toString(36)}`;
     const now = new Date().toISOString();
-    const fullName = e.fullName || e.full_name || e.name || "Unnamed Employee";
-    const email = e.email || `${id}@worqester.internal`;
-    const employeeNumber = e.employeeNumber || e.employee_number || `WQ-${Math.floor(1000 + Math.random() * 9000)}`;
-    const department = e.department || "Operations";
-    const designation = e.designation || "Specialist";
-    const salaryBasic = e.salaryBasic || e.salary || 0;
-    const bankAccount = e.bankAccountMasked || e.bank_account_masked || "HDFC •••• 1234";
-    const workMode = e.workMode || e.work_mode || "Hybrid";
-    const location = e.location || "Bangalore HQ";
+    const fullName = (e.fullName || e.full_name || e.name || "Unnamed Employee").trim();
+    const eId = (e.eId || e.e_id || e.employeeNumber || e.employee_number || `o${Math.floor(170900 + Math.random() * 99)}`).trim();
+    const workEmail = (e.workEmail || e.work_email || e.email || `${eId}@soxit.org`).trim();
+    const personalEmail = (e.personalEmail || e.personal_email || "").trim();
+    const team = (e.team || e.designation || "SDE").trim();
+    const department = (e.department || "Engineering & Cloud").trim();
+    const designation = (e.designation || team || "Specialist").trim();
+    const phone = (e.phone || "+91 98000 00000").trim();
+    const status = (e.status || "Active").trim();
+    const salaryBasic = Number(e.salaryBasic ?? e.salary ?? 0);
+    const bankAccount = e.bankAccountMasked || e.bank_account_masked || "Bank **** 0000";
+    const workMode = e.workMode || e.work_mode || "On-site";
+    const location = e.location || "Headquarters";
+
+    // Also provision login account in users table with workEmail as password
+    let userId = e.userId || `usr-${id.replace(/^emp-/, "")}`;
+    const existingUsers = await db.query<{ id: string }>(
+      "SELECT id FROM users WHERE workspace_id = ? AND LOWER(email) = ?",
+      [req.workspaceId, workEmail.toLowerCase()]
+    );
+    if (existingUsers.length > 0) {
+      userId = existingUsers[0].id;
+    } else {
+      const salt = generateSalt();
+      const hash = hashPassword(workEmail, salt);
+      const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=2563eb&color=fff&bold=true`;
+      await db.execute(
+        `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, req.workspaceId, fullName, workEmail, avatar, "Employee", team, designation, salt, hash, now]
+      );
+    }
 
     await db.execute(
-      `INSERT INTO employees (id, workspace_id, user_id, full_name, email, employee_number, department, designation, salary_basic, bank_account_masked, work_mode, location, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, req.workspaceId, e.userId || null, fullName, email, employeeNumber, department, designation, salaryBasic, bankAccount, workMode, location, now, now]
+      `INSERT OR REPLACE INTO employees (id, workspace_id, user_id, full_name, email, work_email, personal_email, employee_number, e_id, department, designation, team, phone, status, salary_basic, bank_account_masked, work_mode, location, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, req.workspaceId, userId, fullName, workEmail, workEmail, personalEmail, eId, eId, department, designation, team, phone, status, salaryBasic, bankAccount, workMode, location, now, now]
     );
-    return res.status(201).json({ success: true, employee: { ...e, id, fullName, email, employeeNumber } });
+    return res.status(201).json({
+      success: true,
+      employee: {
+        ...e,
+        id,
+        fullName,
+        eId,
+        employeeNumber: eId,
+        workEmail,
+        email: workEmail,
+        personalEmail,
+        team,
+        department,
+        designation,
+        phone,
+        status,
+      },
+    });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-app.delete("/api/hrm/employees/:id", requireAuth, requireRole(["Admin", "HR Manager", "Super Admin"]), async (req: any, res) => {
+app.delete("/api/hrm/employees/:id", requireAuth, requireRole(["Admin", "HR Manager", "Super Admin", "Executive"]), async (req: any, res) => {
   try {
     const db = await getDatabase();
     await db.execute("DELETE FROM employees WHERE id = ? AND workspace_id = ?", [req.params.id, req.workspaceId]);
@@ -937,18 +988,87 @@ app.delete("/api/hrm/employees/:id", requireAuth, requireRole(["Admin", "HR Mana
   }
 });
 
-app.put("/api/hrm/employees/:id", requireAuth, requireRole(["Admin", "HR Manager"]), async (req: any, res) => {
+app.put("/api/hrm/employees/:id", requireAuth, requireRole(["Admin", "HR Manager", "Super Admin", "Executive", "Project Manager"]), async (req: any, res) => {
   try {
     const db = await getDatabase();
     const e = req.body;
     const now = new Date().toISOString();
-    await db.execute(
-      `UPDATE employees SET full_name = ?, department = ?, designation = ?, salary_basic = ?,
-              bank_account_masked = ?, work_mode = ?, location = ?, updated_at = ?
-       WHERE id = ? AND workspace_id = ?`,
-      [e.fullName, e.department, e.designation, e.salaryBasic, e.bankAccountMasked, e.workMode, e.location, now, req.params.id, req.workspaceId]
+    const existingRows = await db.query<any>(
+      "SELECT * FROM employees WHERE id = ? AND workspace_id = ?",
+      [req.params.id, req.workspaceId]
     );
-    return res.json({ success: true, employee: { ...e, id: req.params.id } });
+    const cur = existingRows[0] || {};
+    const fullName = (e.fullName ?? cur.full_name ?? "Employee").trim();
+    const eId = (e.eId ?? e.employeeNumber ?? cur.e_id ?? cur.employee_number ?? "").trim();
+    const workEmail = (e.workEmail ?? e.email ?? cur.work_email ?? cur.email ?? "").trim();
+    const personalEmail = (e.personalEmail ?? cur.personal_email ?? "").trim();
+    const team = (e.team ?? e.designation ?? cur.team ?? cur.designation ?? "").trim();
+    const department = (e.department ?? cur.department ?? "Engineering & Cloud").trim();
+    const designation = (e.designation ?? e.team ?? cur.designation ?? "Specialist").trim();
+    const phone = (e.phone ?? cur.phone ?? "+91 98000 00000").trim();
+    const status = (e.status ?? cur.status ?? "Active").trim();
+    const salaryBasic = Number(e.salaryBasic ?? cur.salary_basic ?? 0);
+    const bankAccountMasked = e.bankAccountMasked ?? cur.bank_account_masked ?? "Bank **** 0000";
+    const workMode = e.workMode ?? cur.work_mode ?? "On-site";
+    const location = e.location ?? cur.location ?? "Headquarters";
+
+    await db.execute(
+      `UPDATE employees SET full_name = ?, email = ?, work_email = ?, personal_email = ?,
+              employee_number = ?, e_id = ?, department = ?, designation = ?, team = ?,
+              phone = ?, status = ?, salary_basic = ?, bank_account_masked = ?,
+              work_mode = ?, location = ?, updated_at = ?
+       WHERE id = ? AND workspace_id = ?`,
+      [
+        fullName,
+        workEmail,
+        workEmail,
+        personalEmail,
+        eId,
+        eId,
+        department,
+        designation,
+        team,
+        phone,
+        status,
+        salaryBasic,
+        bankAccountMasked,
+        workMode,
+        location,
+        now,
+        req.params.id,
+        req.workspaceId,
+      ]
+    );
+
+    if (cur.user_id && workEmail) {
+      await db.execute(
+        "UPDATE users SET name = ?, email = ?, department = ?, job_title = ? WHERE id = ? AND workspace_id = ?",
+        [fullName, workEmail, team, designation, cur.user_id, req.workspaceId]
+      ).catch(() => {});
+    }
+
+    return res.json({
+      success: true,
+      employee: {
+        ...e,
+        id: req.params.id,
+        fullName,
+        eId,
+        employeeNumber: eId,
+        workEmail,
+        email: workEmail,
+        personalEmail,
+        team,
+        department,
+        designation,
+        phone,
+        status,
+        salaryBasic,
+        bankAccountMasked,
+        workMode,
+        location,
+      },
+    });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

@@ -50,39 +50,39 @@ import {
 } from "../types";
 
 const STORAGE_KEYS = {
-  USERS: "worqester_users_v3",
-  CURRENT_USER_ID: "worqester_current_user_v3",
-  SETTINGS: "worqester_settings_v3",
-  COMPANIES: "worqester_companies_v3",
-  CONTACTS: "worqester_contacts_v3",
-  LEADS: "worqester_leads_v3",
-  DEALS: "worqester_deals_v3",
-  PROJECTS: "worqester_projects_v3",
-  TASKS: "worqester_tasks_v3",
-  DEPARTMENTS: "worqester_departments_v3",
-  EMPLOYEES: "worqester_employees_v3",
-  ATTENDANCE: "worqester_attendance_v3",
-  LEAVES: "worqester_leaves_v3",
-  POSITIONS: "worqester_positions_v3",
-  CANDIDATES: "worqester_candidates_v3",
-  EXPENSES: "worqester_expenses_v3",
-  ASSETS: "worqester_assets_v3",
-  DOCUMENTS: "worqester_documents_v3",
-  NOTES: "worqester_notes_v3",
-  ACTIVITIES: "worqester_activities_v3",
-  AUDIT_LOGS: "worqester_audit_logs_v3",
-  AUTOMATIONS: "worqester_automations_v3",
-  FAVORITES: "worqester_favorites_v3",
-  MILESTONES: "worqester_milestones_v3",
-  INVITATIONS: "worqester_invitations_v3",
-  RBAC_PERMISSIONS: "worqester_rbac_permissions_v3",
+  USERS: "worqester_users_v4",
+  CURRENT_USER_ID: "worqester_current_user_v4",
+  SETTINGS: "worqester_settings_v4",
+  COMPANIES: "worqester_companies_v4",
+  CONTACTS: "worqester_contacts_v4",
+  LEADS: "worqester_leads_v4",
+  DEALS: "worqester_deals_v4",
+  PROJECTS: "worqester_projects_v4",
+  TASKS: "worqester_tasks_v4",
+  DEPARTMENTS: "worqester_departments_v4",
+  EMPLOYEES: "worqester_employees_v4",
+  ATTENDANCE: "worqester_attendance_v4",
+  LEAVES: "worqester_leaves_v4",
+  POSITIONS: "worqester_positions_v4",
+  CANDIDATES: "worqester_candidates_v4",
+  EXPENSES: "worqester_expenses_v4",
+  ASSETS: "worqester_assets_v4",
+  DOCUMENTS: "worqester_documents_v4",
+  NOTES: "worqester_notes_v4",
+  ACTIVITIES: "worqester_activities_v4",
+  AUDIT_LOGS: "worqester_audit_logs_v4",
+  AUTOMATIONS: "worqester_automations_v4",
+  FAVORITES: "worqester_favorites_v4",
+  MILESTONES: "worqester_milestones_v4",
+  INVITATIONS: "worqester_invitations_v4",
+  RBAC_PERMISSIONS: "worqester_rbac_permissions_v4",
 };
 
-// Purge legacy v1/v2 demo seed keys from localStorage if present
+// Purge legacy v1/v2/v3 seed keys from localStorage if present
 try {
   if (typeof window !== "undefined" && window.localStorage) {
     Object.keys(window.localStorage).forEach((k) => {
-      if (k.startsWith("worqester_") && (k.endsWith("_v1") || k.endsWith("_v2"))) {
+      if (k.startsWith("worqester_") && (k.endsWith("_v1") || k.endsWith("_v2") || k.endsWith("_v3"))) {
         window.localStorage.removeItem(k);
       }
     });

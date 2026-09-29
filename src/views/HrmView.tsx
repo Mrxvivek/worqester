@@ -75,34 +75,62 @@ export const HrmView: React.FC = () => {
   // Employee columns
   const employeeColumns: Column<Employee>[] = [
     {
+      key: "employeeNumber",
+      header: "eID",
+      sortable: true,
+      render: (emp) => (
+        <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+          {emp.eId || emp.employeeNumber}
+        </span>
+      ),
+    },
+    {
       key: "fullName",
-      header: "Employee & ID",
+      header: "Full Name",
       sortable: true,
       render: (emp) => (
         <div className="flex items-center gap-3">
           <img
             src={emp.avatar}
             alt={emp.fullName}
-            className="w-8 h-8 rounded-lg object-cover ring-1 ring-blue-500/30"
+            className="w-8 h-8 rounded-lg object-cover ring-1 ring-blue-500/30 shrink-0"
           />
           <div>
             <div className="font-semibold text-slate-900 dark:text-white">{emp.fullName}</div>
-            <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 font-bold">
-              {emp.employeeNumber} • {emp.email}
-            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">{emp.location}</div>
           </div>
         </div>
       ),
     },
     {
       key: "designation",
-      header: "Designation & Dept",
+      header: "Team & Dept",
       sortable: true,
       render: (emp) => (
         <div>
-          <div className="text-slate-800 dark:text-slate-200 font-medium">{emp.designation}</div>
+          <div className="text-slate-800 dark:text-slate-200 font-semibold">{emp.team || emp.designation}</div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400">{emp.department}</div>
         </div>
+      ),
+    },
+    {
+      key: "email",
+      header: "Work Mail",
+      sortable: true,
+      render: (emp) => (
+        <span className="font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">
+          {emp.workEmail || emp.email}
+        </span>
+      ),
+    },
+    {
+      key: "personalEmail",
+      header: "Personal Mail",
+      sortable: true,
+      render: (emp) => (
+        <span className="font-mono text-xs text-slate-600 dark:text-slate-300">
+          {emp.personalEmail || "—"}
+        </span>
       ),
     },
     {
@@ -120,12 +148,6 @@ export const HrmView: React.FC = () => {
           {emp.workMode}
         </span>
       ),
-    },
-    {
-      key: "location",
-      header: "Location",
-      sortable: true,
-      render: (emp) => <span className="text-slate-600 dark:text-slate-400">{emp.location}</span>,
     },
     {
       key: "salaryBasic",

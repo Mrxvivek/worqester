@@ -829,21 +829,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const createEmployee = (data: Omit<Employee, "id" | "organizationId">) => {
+    const eId = data.eId || data.employeeNumber || `o${Math.floor(170900 + Math.random() * 99)}`;
+    const workEmail = data.workEmail || data.email || `${eId}@soxit.org`;
     const newEmp: Employee = {
       ...data,
       id: `emp-${Date.now()}`,
       organizationId: currentUser.organizationId,
+      eId,
+      employeeNumber: eId,
+      workEmail,
+      email: workEmail,
+      personalEmail: data.personalEmail || "",
     };
     const list = [newEmp, ...employees];
     StorageService.saveEmployees(list);
     setEmployees(list);
+    HrmApi.createEmployee(newEmp).catch((e) => console.error("API createEmployee error:", e));
     StorageService.addAuditLog({
       userName: currentUser.name,
       userRole: currentUser.role,
       action: "Created Employee Record",
       entityType: "Employee",
       entityName: newEmp.fullName,
-      details: `Onboarded employee ${newEmp.employeeNumber} into ${newEmp.department}.`,
+      details: `Onboarded employee ${newEmp.employeeNumber} (${newEmp.workEmail}) into ${newEmp.department}.`,
     });
     refreshData();
   };
@@ -1160,6 +1168,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const filtered = employees.filter((e) => e.id !== id);
       StorageService.saveEmployees(filtered);
       setEmployees(filtered);
+      HrmApi.deleteEmployee(id).catch((e) => console.error("API deleteEmployee error:", e));
     } else if (type === "document") {
       const filtered = documents.filter((d) => d.id !== id);
       StorageService.saveDocuments(filtered);

@@ -202,12 +202,25 @@ export const HrmApi = {
     return res && res.success && res.employees ? res.employees : [];
   },
 
+  createEmployee: async (employee: Partial<Employee>): Promise<Employee | null> => {
+    const res = await apiRequest<{ success: boolean; employee: Employee }>("/api/hrm/employees", {
+      method: "POST",
+      body: JSON.stringify(employee),
+    });
+    return res && res.success ? res.employee : null;
+  },
+
   updateEmployee: async (id: string, employee: Partial<Employee>): Promise<Employee | null> => {
     const res = await apiRequest<{ success: boolean; employee: Employee }>(`/api/hrm/employees/${id}`, {
       method: "PUT",
       body: JSON.stringify(employee),
     });
     return res && res.success ? res.employee : null;
+  },
+
+  deleteEmployee: async (id: string): Promise<boolean> => {
+    const res = await apiRequest(`/api/hrm/employees/${id}`, { method: "DELETE" });
+    return Boolean(res && res.success);
   },
 
   getExpenses: async (): Promise<Expense[]> => {

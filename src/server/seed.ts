@@ -188,37 +188,59 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
   ];
 
   for (const u of users) {
-    const salt = generateSalt();
-    const rawPassword = u.password || defaultPassword;
-    const hash = hashPassword(rawPassword, salt);
-    await db.execute(
-      `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [u.id, workspaceId, u.name, u.email, u.avatar, u.role, u.department, u.job_title, salt, hash, now]
-    );
+    const existingUsers = await db.query<{ id: string }>("SELECT id FROM users WHERE id = ?", [u.id]);
+    if (existingUsers.length === 0) {
+      const salt = generateSalt();
+      const rawPassword = u.password || defaultPassword;
+      const hash = hashPassword(rawPassword, salt);
+      await db.execute(
+        `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [u.id, workspaceId, u.name, u.email, u.avatar, u.role, u.department, u.job_title, salt, hash, now]
+      );
+    }
 
     if (u.eId) {
       const empId = u.id.replace("usr-", "emp-");
-      await db.execute(
-        `INSERT OR REPLACE INTO employees (id, workspace_id, user_id, full_name, email, employee_number, department, designation, salary_basic, bank_account_masked, work_mode, location, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          empId,
-          workspaceId,
-          u.id,
-          u.name,
-          u.email,
-          u.eId,
-          u.department,
-          u.job_title,
-          0,
-          "Bank **** 0000",
-          "On-site",
-          "Headquarters",
-          now,
-          now,
-        ]
+      const existingEmp = await db.query<{ id: string; personal_email: string }>(
+        "SELECT id, personal_email FROM employees WHERE id = ? OR (workspace_id = ? AND employee_number = ?)",
+        [empId, workspaceId, u.eId]
       );
+      if (existingEmp.length === 0) {
+        await db.execute(
+          `INSERT INTO employees (id, workspace_id, user_id, full_name, email, work_email, personal_email, employee_number, e_id, department, designation, team, status, salary_basic, bank_account_masked, work_mode, location, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            empId,
+            workspaceId,
+            u.id,
+            u.name,
+            u.email,
+            u.email,
+            "",
+            u.eId,
+            u.eId,
+            "Engineering & Cloud",
+            u.job_title,
+            u.department,
+            "Active",
+            0,
+            "Bank **** 0000",
+            "On-site",
+            "Headquarters",
+            now,
+            now,
+          ]
+        );
+      } else {
+        await db.execute(
+          `UPDATE employees SET e_id = COALESCE(NULLIF(e_id, ''), employee_number),
+                                work_email = COALESCE(NULLIF(work_email, ''), email),
+                                team = COALESCE(NULLIF(team, ''), designation)
+           WHERE id = ?`,
+          [existingEmp[0].id]
+        );
+      }
     }
   }
 

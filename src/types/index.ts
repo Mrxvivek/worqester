@@ -202,10 +202,13 @@ export interface Employee {
   id: string;
   organizationId: string;
   employeeNumber: string;
+  eId?: string;
   firstName: string;
   lastName: string;
   fullName: string;
   email: string;
+  workEmail?: string;
+  personalEmail?: string;
   phone: string;
   avatar: string;
   department: string;

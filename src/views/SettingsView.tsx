@@ -200,25 +200,32 @@ export const SettingsView: React.FC = () => {
         });
         count++;
       } else if (category === "employees") {
-        const fullName = item.fullName || item.name || `${item.firstName || "Team"} ${item.lastName || "Member"}`.trim();
+        const fullName = item.fullName || item.FullName || item.name || `${item.firstName || "Team"} ${item.lastName || "Member"}`.trim();
         const parts = fullName.split(" ");
+        const eIdVal = item.eId || item.eID || item.employeeNumber || `o${170917 + employees.length + count}`;
+        const workEmailVal = item.workEmail || item.workMail || item.email || item.Email || `${eIdVal}@soxit.org`;
+        const personalEmailVal = item.personalEmail || item.personalMail || "";
+        const teamVal = item.team || item.Team || item.designation || item.role || "SDE";
         createEmployee({
-          employeeNumber: item.employeeNumber || `WQ-${1000 + employees.length + count + 1}`,
+          employeeNumber: eIdVal,
+          eId: eIdVal,
           firstName: item.firstName || parts[0] || "Team",
           lastName: item.lastName || parts.slice(1).join(" ") || "Member",
           fullName,
-          email: item.email || `${parts[0]?.toLowerCase() || "user"}@worqester.internal`,
+          email: workEmailVal,
+          workEmail: workEmailVal,
+          personalEmail: personalEmailVal,
           phone: item.phone || "+91 98000 00000",
-          avatar: item.avatar || currentUser.avatar,
+          avatar: item.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=2563eb&color=fff&bold=true`,
           department: item.department || "Engineering & Cloud",
-          team: item.team || "Core Operations",
-          designation: item.designation || item.role || "Specialist",
+          team: teamVal,
+          designation: teamVal,
           location: item.location || "Headquarters",
           employmentType: (item.employmentType as any) || "Full Time",
           joiningDate: item.joiningDate || today,
           status: (item.status as any) || "Active",
-          workMode: (item.workMode as any) || "Hybrid",
-          skills: Array.isArray(item.skills) ? item.skills : (item.skills ? String(item.skills).split(";") : ["Operations"]),
+          workMode: (item.workMode as any) || "On-site",
+          skills: Array.isArray(item.skills) ? item.skills : (item.skills ? String(item.skills).split(";") : [teamVal]),
           capacityHoursPerWeek: Number(item.capacityHoursPerWeek) || 40,
           loggedHoursThisWeek: Number(item.loggedHoursThisWeek) || 0,
           leaveBalanceDays: Number(item.leaveBalanceDays) || 18,

@@ -76,10 +76,12 @@ export const GlobalCreateModal: React.FC = () => {
   const [taskHours, setTaskHours] = useState(16);
 
   // Employee Form State
+  const [empEId, setEmpEId] = useState("");
   const [empFirstName, setEmpFirstName] = useState("");
   const [empLastName, setEmpLastName] = useState("");
   const [empEmail, setEmpEmail] = useState("");
-  const [empDesignation, setEmpDesignation] = useState("Software Engineer");
+  const [empPersonalEmail, setEmpPersonalEmail] = useState("");
+  const [empDesignation, setEmpDesignation] = useState("SDE");
   const [empDept, setEmpDept] = useState(departments[0]?.name || "Engineering & Cloud");
 
   // Leave Form State
@@ -212,28 +214,34 @@ export const GlobalCreateModal: React.FC = () => {
         actualHours: 0,
       });
     } else if (activeType === "employee") {
+      const eIdVal = empEId.trim() || `o${170917 + employees.length}`;
+      const fullNameVal = `${empFirstName.trim() || "New"} ${empLastName.trim() || "Employee"}`.trim();
+      const workEmailVal = empEmail.trim() || `${eIdVal}@soxit.org`;
       createEmployee({
-        employeeNumber: `WQ-${1000 + employees.length + 1}`,
-        firstName: empFirstName || "Rohit",
-        lastName: empLastName || "Gupta",
-        fullName: `${empFirstName || "Rohit"} ${empLastName || "Gupta"}`,
-        email: empEmail || "rohit.gupta@worqester.internal",
-        phone: "+91 98450 09999",
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+        employeeNumber: eIdVal,
+        eId: eIdVal,
+        firstName: empFirstName.trim() || "New",
+        lastName: empLastName.trim() || "Employee",
+        fullName: fullNameVal,
+        email: workEmailVal,
+        workEmail: workEmailVal,
+        personalEmail: empPersonalEmail.trim(),
+        phone: "+91 98000 00000",
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullNameVal)}&background=2563eb&color=fff&bold=true`,
         department: empDept,
-        team: "Operations Team",
-        designation: empDesignation,
-        location: "Bengaluru",
+        team: empDesignation || "SDE",
+        designation: empDesignation || "SDE",
+        location: "Headquarters",
         employmentType: "Full Time",
         joiningDate: new Date().toISOString().split("T")[0],
         status: "Active",
-        workMode: "Hybrid",
-        skills: ["Project Management", "Customer Success", "Enterprise Systems"],
+        workMode: "On-site",
+        skills: [empDesignation || "SDE"],
         capacityHoursPerWeek: 40,
         loggedHoursThisWeek: 0,
         leaveBalanceDays: 18,
-        salaryBasic: 180000,
-        bankAccountMasked: "HDFC **** 8891",
+        salaryBasic: 0,
+        bankAccountMasked: "Bank **** 0000",
       });
     } else if (activeType === "leave") {
       createLeaveRequest({
@@ -624,7 +632,20 @@ export const GlobalCreateModal: React.FC = () => {
         {/* EMPLOYEE FORM */}
         {activeType === "employee" && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
+                  eID (Employee ID) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={empEId}
+                  onChange={(e) => setEmpEId(e.target.value)}
+                  placeholder="e.g. o170917"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                />
+              </div>
               <div>
                 <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   First Name *
@@ -634,7 +655,7 @@ export const GlobalCreateModal: React.FC = () => {
                   required
                   value={empFirstName}
                   onChange={(e) => setEmpFirstName(e.target.value)}
-                  placeholder="e.g. Rohit"
+                  placeholder="e.g. Yenduri"
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
@@ -647,12 +668,51 @@ export const GlobalCreateModal: React.FC = () => {
                   required
                   value={empLastName}
                   onChange={(e) => setEmpLastName(e.target.value)}
-                  placeholder="e.g. Gupta"
+                  placeholder="e.g. Hima Sai Sri"
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
+                  Work Mail *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={empEmail}
+                  onChange={(e) => setEmpEmail(e.target.value)}
+                  placeholder="e.g. Yhima17@soxit.org"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
+                  Personal Mail
+                </label>
+                <input
+                  type="email"
+                  value={empPersonalEmail}
+                  onChange={(e) => setEmpPersonalEmail(e.target.value)}
+                  placeholder="e.g. personal@gmail.com"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
+                  Team / Designation
+                </label>
+                <input
+                  type="text"
+                  value={empDesignation}
+                  onChange={(e) => setEmpDesignation(e.target.value)}
+                  placeholder="e.g. SDE, SDE-FE, QA | DM, BA"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
               <div>
                 <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
                   Department
@@ -668,18 +728,6 @@ export const GlobalCreateModal: React.FC = () => {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="block text-slate-700 dark:text-slate-200 font-semibold mb-1">
-                  Designation / Role
-                </label>
-                <input
-                  type="text"
-                  value={empDesignation}
-                  onChange={(e) => setEmpDesignation(e.target.value)}
-                  placeholder="Senior Software Engineer"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
-                />
               </div>
             </div>
           </>
