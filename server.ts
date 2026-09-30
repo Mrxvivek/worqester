@@ -16,7 +16,7 @@ import { seedDatabase } from "./src/server/seed";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: "10mb" }));
 
@@ -1639,15 +1639,28 @@ async function startServer() {
     console.warn("[Bootstrap] Initialization check warning:", seedErr);
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  const fs = await import("fs");
+  const distPath = path.join(process.cwd(), "dist");
+  const isCompiledBundle =
+    typeof __filename === "string" && (__filename.endsWith("server.cjs") || __filename.includes("dist"));
+  const shouldServeStatic = process.env.NODE_ENV === "production" || isCompiledBundle;
+
+  if (!shouldServeStatic) {
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.warn("[Bootstrap] Vite dev server unavailable, falling back to static dist/:", viteErr);
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
   } else {
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
