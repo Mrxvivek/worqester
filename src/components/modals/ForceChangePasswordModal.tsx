@@ -97,7 +97,7 @@ export const ForceChangePasswordModal: React.FC = () => {
         {/* Form Body */}
         <div className="p-6 sm:p-7 space-y-5">
           <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
-            Welcome <strong className="text-slate-900 dark:text-white">{currentUser?.name}</strong>. As an Employee, organization security requires changing your temporary password before accessing the workspace.
+            Welcome <strong className="text-slate-900 dark:text-white">{currentUser?.name}</strong>. As an organization {currentUser?.role || "member"}, security policy requires updating your initial password before accessing the workspace.
           </div>
 
           {error && (
@@ -121,7 +121,7 @@ export const ForceChangePasswordModal: React.FC = () => {
                   type={showCurrent ? "text" : "password"}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter temporary password"
+                  placeholder="Enter temporary password (email, name, or soxit123)"
                   required
                   className="w-full pl-9 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 />

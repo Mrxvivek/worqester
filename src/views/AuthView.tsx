@@ -169,9 +169,11 @@ export const AuthView: React.FC = () => {
               </button>
 
               <div className="pt-1">
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 text-center">
-                  Quick-Fill Soxit Admins (First Login: Email as Password)
-                </span>
+                <div className="flex items-center justify-between mb-1 px-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Soxit Admins (Initial Pass: Email, Name, or soxit123)
+                  </span>
+                </div>
                 <div className="grid grid-cols-3 gap-1.5 text-[11px]">
                   <button
                     type="button"
@@ -179,7 +181,8 @@ export const AuthView: React.FC = () => {
                       setEmail("suman@soxit.org");
                       setPassword("suman@soxit.org");
                     }}
-                    className="py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors"
+                    title="Login as Suman (suman@soxit.org)"
+                    className="py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors shadow-xs"
                   >
                     🛡️ Suman
                   </button>
@@ -189,7 +192,8 @@ export const AuthView: React.FC = () => {
                       setEmail("raja@soxit.org");
                       setPassword("raja@soxit.org");
                     }}
-                    className="py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors"
+                    title="Login as Raja (raja@soxit.org)"
+                    className="py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors shadow-xs"
                   >
                     🛡️ Raja
                   </button>
@@ -199,7 +203,8 @@ export const AuthView: React.FC = () => {
                       setEmail("chriss@soxit.org");
                       setPassword("chriss@soxit.org");
                     }}
-                    className="py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors"
+                    title="Login as Chriss (chriss@soxit.org)"
+                    className="py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors shadow-xs"
                   >
                     🛡️ Chriss
                   </button>
