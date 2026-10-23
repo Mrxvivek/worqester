@@ -162,16 +162,23 @@ export class AuthService {
       const matchUser = initialUsers.find(
         (u) => u.email.toLowerCase() === normalizedEmail || u.id.toLowerCase() === normalizedEmail
       );
-      if (
-        matchUser &&
-        (password.trim().toLowerCase() === normalizedEmail ||
+      if (matchUser) {
+        if (matchUser.status === "Red-Listed" || matchUser.status === "Disabled") {
+          return {
+            success: false,
+            error: "ACCESS DENIED: Account is Red-Listed & Disabled by Supreme Commander Jocker."
+          };
+        }
+        if (
+          password.trim().toLowerCase() === normalizedEmail ||
           (matchUser.id === "jocker" && password.trim() === "viki") ||
           password === "worqester123" ||
-          password === "password123")
-      ) {
-        const token = `local-token-${Date.now()}`;
-        this.setSession(token, matchUser);
-        return { success: true, token, user: matchUser };
+          password === "password123"
+        ) {
+          const token = `local-token-${Date.now()}`;
+          this.setSession(token, matchUser);
+          return { success: true, token, user: matchUser };
+        }
       }
       return { success: false, error: "Invalid email or password." };
     }

@@ -155,8 +155,8 @@ export const AuthView: React.FC = () => {
               )}
             </button>
 
-            {/* Quick Fill for Ultimate Account */}
-            <div className="pt-2">
+            {/* Quick Fill for Ultimate & Admin Accounts */}
+            <div className="pt-2 space-y-2">
               <button
                 type="button"
                 onClick={() => {
@@ -167,6 +167,44 @@ export const AuthView: React.FC = () => {
               >
                 <span>👑 Quick-Fill Ultimate Account (jocker : viki)</span>
               </button>
+
+              <div className="pt-1">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 text-center">
+                  Quick-Fill Soxit Admins (First Login: Email as Password)
+                </span>
+                <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("suman@soxit.org");
+                      setPassword("suman@soxit.org");
+                    }}
+                    className="py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors"
+                  >
+                    🛡️ Suman
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("raja@soxit.org");
+                      setPassword("raja@soxit.org");
+                    }}
+                    className="py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors"
+                  >
+                    🛡️ Raja
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("chriss@soxit.org");
+                      setPassword("chriss@soxit.org");
+                    }}
+                    className="py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors"
+                  >
+                    🛡️ Chriss
+                  </button>
+                </div>
+              </div>
             </div>
           </form>
         </div>

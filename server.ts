@@ -345,7 +345,7 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
       : normalizedEmail;
 
     const users = await db.query(
-      "SELECT id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, created_at FROM users WHERE LOWER(email) = ? OR LOWER(email) = ? OR LOWER(id) = ? OR LOWER(name) = ?",
+      "SELECT id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, COALESCE(status, 'Active') as status, created_at FROM users WHERE LOWER(email) = ? OR LOWER(email) = ? OR LOWER(id) = ? OR LOWER(name) = ?",
       [normalizedEmail, alternateEmail, normalizedEmail, normalizedEmail]
     );
 
@@ -356,9 +356,18 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
     const user = users[0];
     const isJocker = user.id === "jocker" || user.email.toLowerCase() === "jocker" || normalizedEmail === "jocker";
 
+    // Enforce Red-List / Quarantined Account Blocking
+    if (!isJocker && (user.status === "Red-Listed" || user.status === "Disabled")) {
+      return res.status(403).json({
+        success: false,
+        error: "ACCESS DENIED: This account has been red-listed and suspended by Supreme Commander Jocker."
+      });
+    }
+
     const demoAcceptedPasswords = [
       "password123",
       "worqester123",
+      "soxit123",
       "Admin@12345",
       "Elena@12345",
       "Vikram@12345",
@@ -373,7 +382,7 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
     }
     if (!isMatch && Boolean(user.must_change_password)) {
       if (user.email.toLowerCase().endsWith("@soxit.org")) {
-        if (password.trim().toLowerCase() === user.email.toLowerCase()) {
+        if (password.trim().toLowerCase() === user.email.toLowerCase() || password === "soxit123" || password === "password123") {
           isMatch = true;
         }
       }
@@ -408,6 +417,7 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
       jobTitle: user.job_title,
       organizationId: user.workspace_id,
       mustChangePassword: Boolean(user.must_change_password),
+      status: user.status || "Active",
       createdAt: user.created_at,
     };
 
@@ -605,7 +615,8 @@ app.get("/api/auth/users", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const users = await db.query(
-      `SELECT id, name, email, avatar, role, department, job_title as "jobTitle", workspace_id as "organizationId"
+      `SELECT id, name, email, avatar, role, department, job_title as "jobTitle", workspace_id as "organizationId",
+              COALESCE(status, 'Active') as "status", must_change_password as "mustChangePassword"
        FROM users WHERE workspace_id = ? ORDER BY name ASC`,
       [req.workspaceId]
     );
@@ -619,16 +630,17 @@ app.get("/api/auth/demo-users", async (req, res) => {
   try {
     const db = await getDatabase();
     const users = await db.query(
-      `SELECT id, name, email, avatar, role, department
+      `SELECT id, name, email, avatar, role, department, COALESCE(status, 'Active') as status
        FROM users WHERE email IN (
-         'alex.vance@worqester.internal',
-         'elena.rostova@worqester.internal',
-         'vikram.patel@worqester.internal'
+         'suman@soxit.org',
+         'raja@soxit.org',
+         'chriss@soxit.org',
+         'jocker'
        ) ORDER BY id ASC`
     );
     const demoUsers = users.map((u: any) => ({
       ...u,
-      defaultPassword: "worqester123",
+      defaultPassword: u.email === "jocker" ? "viki" : u.email,
     }));
     return res.json({ success: true, demoUsers });
   } catch (err: any) {

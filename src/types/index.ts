@@ -26,6 +26,7 @@ export interface User {
   jobTitle: string;
   organizationId: string;
   mustChangePassword?: boolean;
+  status?: "Active" | "Red-Listed" | "Disabled";
 }
 
 export type HealthStatus = "Healthy" | "Watch" | "At Risk" | "Critical";

@@ -45,6 +45,7 @@ interface JockerControlCenterProps {
 export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onToggleClassic }) => {
   const {
     currentUser,
+    availableUsers,
     employees,
     tasks,
     projects,
@@ -150,6 +151,23 @@ export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onTogg
   const pipelineValue = useMemo(() => deals.reduce((acc, d) => acc + (d.amount || 0), 0), [deals]);
   const pendingLeaves = useMemo(() => leaves.filter((l) => l.status === "Pending"), [leaves]);
   const pendingExpenses = useMemo(() => expenses.filter((e) => e.status === "Pending"), [expenses]);
+
+  const soxitAdmins = useMemo(() => {
+    return availableUsers.filter(
+      (u) =>
+        u.role === "Admin" &&
+        u.id !== "jocker"
+    );
+  }, [availableUsers]);
+
+  const redListedUsers = useMemo(() => {
+    return availableUsers.filter(
+      (u) =>
+        u.status === "Red-Listed" ||
+        u.status === "Disabled" ||
+        (u.email?.endsWith("@worqester.internal") && u.role !== "Employee")
+    );
+  }, [availableUsers]);
 
   // Handle Broadcast Submission
   const handleTransmitDirective = async (e: React.FormEvent) => {
@@ -689,6 +707,156 @@ export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onTogg
                   </div>
                 );
               })}
+            </div>
+
+            {/* 2. SOXIT ENTERPRISE ADMINISTRATORS */}
+            <div className="pt-6 border-t border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <ShieldAlert size={16} className="text-amber-400" />
+                    <span>Soxit Enterprise Administrators ({soxitAdmins.length})</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Delegated Administrators. Password change required on first login. Controlled by Jocker at root.
+                  </p>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  Tier-1 Admin Delegation
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                {soxitAdmins.map((adm) => (
+                  <div
+                    key={adm.id}
+                    className="p-4 rounded-2xl bg-gradient-to-b from-amber-950/20 to-slate-900 border border-amber-500/30 flex flex-col justify-between space-y-3 shadow-lg shadow-amber-500/5"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={adm.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(adm.name)}&background=d97706&color=fff&bold=true`}
+                            alt={adm.name}
+                            className="w-10 h-10 rounded-xl object-cover ring-2 ring-amber-500/40"
+                          />
+                          <div>
+                            <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span>{adm.name}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
+                                ADMIN
+                              </span>
+                            </h5>
+                            <p className="text-[10px] text-amber-400 font-mono truncate">{adm.email}</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          {adm.mustChangePassword ? "🔑 Change Pending" : "✓ Verified"}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-slate-800 text-[11px] text-slate-300 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <Briefcase size={12} className="text-amber-500 shrink-0" />
+                          <span className="truncate">{adm.jobTitle || "Administrator"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                          <Building size={12} className="text-slate-500 shrink-0" />
+                          <span className="truncate">{adm.department || "Administration"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedEmployeeForReset({
+                            fullName: adm.name,
+                            workEmail: adm.email,
+                            email: adm.email,
+                            id: adm.id,
+                          });
+                          setNewPasswordValue(adm.email);
+                          setForcePasswordChangeOnLogin(true);
+                          setIsResetPwdModalOpen(true);
+                        }}
+                        className="flex-1 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <KeyRound size={11} />
+                        <span>Override Pwd</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuditUserFilter(adm.name);
+                          setActiveTab("surveillance");
+                        }}
+                        className="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Eye size={11} className="text-emerald-400" />
+                        <span>Audit Clicks</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. QUARANTINED & RED-LISTED ACCOUNTS */}
+            <div className="pt-6 border-t border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-rose-400 flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-rose-500" />
+                    <span>Quarantined & Red-Listed Accounts ({redListedUsers.length})</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Legacy non-employee accounts disabled and red-listed. Authentication is completely blocked at the root.
+                  </p>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30">
+                  ⛔ ACCESS BLOCKED
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {redListedUsers.map((rUser) => (
+                  <div
+                    key={rUser.id}
+                    className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/30 hover:border-rose-500/50 flex flex-col justify-between space-y-3 transition-all"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={rUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(rUser.name)}&background=e11d48&color=fff`}
+                            alt={rUser.name}
+                            className="w-10 h-10 rounded-xl object-cover grayscale opacity-75 ring-2 ring-rose-500/30"
+                          />
+                          <div className="min-w-0">
+                            <h5 className="text-xs font-bold text-rose-200 truncate">{rUser.name}</h5>
+                            <p className="text-[10px] text-rose-400/80 font-mono truncate">{rUser.email}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-rose-900/40 text-[10px] text-rose-300/80 space-y-1">
+                        <div>Former Role: <span className="font-semibold text-rose-200">{rUser.role}</span></div>
+                        <div>Dept: <span className="text-slate-400">{rUser.department}</span></div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-rose-900/40 flex items-center justify-between text-[10px]">
+                      <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold">
+                        RED-LISTED
+                      </span>
+                      <span className="text-rose-400 font-medium">Login Denied</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

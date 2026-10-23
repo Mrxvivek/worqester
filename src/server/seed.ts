@@ -29,6 +29,7 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
     avatar: string;
     password?: string;
     eId?: string;
+    status?: string;
   }> = [
     {
       id: "jocker",
@@ -39,7 +40,43 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
       job_title: "Supreme Commander & Owner",
       avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
       password: "viki",
+      status: "Active",
     },
+    // Soxit Enterprise Administrators (Active, must change password on first login)
+    {
+      id: "usr-admin-suman",
+      name: "Suman",
+      email: "suman@soxit.org",
+      password: "suman@soxit.org",
+      role: "Admin",
+      department: "Administration",
+      job_title: "System Administrator",
+      avatar: "https://ui-avatars.com/api/?name=Suman&background=d97706&color=fff&bold=true",
+      status: "Active",
+    },
+    {
+      id: "usr-admin-raja",
+      name: "Raja",
+      email: "raja@soxit.org",
+      password: "raja@soxit.org",
+      role: "Admin",
+      department: "Operations & Administration",
+      job_title: "Operations Administrator",
+      avatar: "https://ui-avatars.com/api/?name=Raja&background=d97706&color=fff&bold=true",
+      status: "Active",
+    },
+    {
+      id: "usr-admin-chriss",
+      name: "Chriss",
+      email: "chriss@soxit.org",
+      password: "chriss@soxit.org",
+      role: "Admin",
+      department: "Executive Administration",
+      job_title: "Platform Administrator",
+      avatar: "https://ui-avatars.com/api/?name=Chriss&background=d97706&color=fff&bold=true",
+      status: "Active",
+    },
+    // Former Non-Employee Roles: Retained in database but Red-Listed & Disabled
     {
       id: "usr-01",
       name: "Alex Vance",
@@ -48,6 +85,7 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
       department: "Executive",
       job_title: "Chief Executive Officer",
       avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      status: "Red-Listed",
     },
     {
       id: "usr-02",
@@ -57,6 +95,7 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
       department: "Operations",
       job_title: "Chief Operating Officer",
       avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
+      status: "Red-Listed",
     },
     {
       id: "usr-03",
@@ -66,6 +105,7 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
       department: "Engineering",
       job_title: "VP of Engineering",
       avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+      status: "Red-Listed",
     },
     {
       id: "usr-04",
@@ -75,6 +115,7 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
       department: "People & Talent",
       job_title: "Head of People & Culture",
       avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
+      status: "Red-Listed",
     },
     {
       id: "usr-05",
@@ -198,16 +239,23 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
   ];
 
   for (const u of users) {
+    const salt = generateSalt();
+    const rawPassword = u.password || defaultPassword;
+    const hash = hashPassword(rawPassword, salt);
+    const mustChange = (u.role === "Employee" || u.role === "Admin") && u.id !== "jocker" ? 1 : 0;
+    const status = u.status || "Active";
+
     const existingUsers = await db.query<{ id: string }>("SELECT id FROM users WHERE id = ?", [u.id]);
     if (existingUsers.length === 0) {
-      const salt = generateSalt();
-      const rawPassword = u.password || defaultPassword;
-      const hash = hashPassword(rawPassword, salt);
-      const mustChange = u.role === "Employee" ? 1 : 0;
       await db.execute(
-        `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [u.id, workspaceId, u.name, u.email, u.avatar, u.role, u.department, u.job_title, salt, hash, mustChange, now]
+        `INSERT INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [u.id, workspaceId, u.name, u.email, u.avatar, u.role, u.department, u.job_title, salt, hash, mustChange, status, now]
+      );
+    } else {
+      await db.execute(
+        "UPDATE users SET role = ?, department = ?, job_title = ?, status = ?, must_change_password = ? WHERE id = ?",
+        [u.role, u.department, u.job_title, status, mustChange, u.id]
       );
     }
 

@@ -861,4 +861,65 @@ export async function runMigrations(db: DatabaseAdapter): Promise<void> {
     });
     console.log("[Database Migration] Successfully applied 007_add_notes_documents_and_attendance_tables.");
   }
+
+  if (!applied.has("008_add_user_status_and_soxit_admins")) {
+    console.log("[Database Migration] Applying 008_add_user_status_and_soxit_admins...");
+    await db.transaction(async (tx) => {
+      await addColumnIfNotExists(tx, "users", "status", "VARCHAR(32) DEFAULT 'Active'");
+
+      // Red-list / disable former non-employee accounts
+      await tx.execute(`
+        UPDATE users SET status = 'Red-Listed'
+        WHERE email IN (
+          'alex.vance@worqester.internal',
+          'priya.sharma@worqester.internal',
+          'marcus.reed@worqester.internal',
+          'elena.rostova@worqester.internal'
+        )
+      `);
+
+      // Seed 3 new Admin accounts for Soxit
+      const admins = [
+        { id: "usr-admin-suman", name: "Suman", email: "suman@soxit.org", department: "Administration", jobTitle: "System Administrator" },
+        { id: "usr-admin-raja", name: "Raja", email: "raja@soxit.org", department: "Operations & Administration", jobTitle: "Operations Administrator" },
+        { id: "usr-admin-chriss", name: "Chriss", email: "chriss@soxit.org", department: "Executive Administration", jobTitle: "Platform Administrator" },
+      ];
+
+      for (const adm of admins) {
+        const existing = await tx.query<{ id: string }>("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", [adm.email]);
+        const salt = generateSalt();
+        const hash = hashPassword(adm.email, salt);
+        if (existing.length === 0) {
+          await tx.execute(
+            `INSERT INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              adm.id,
+              "org-worqester-01",
+              adm.name,
+              adm.email,
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(adm.name)}&background=d97706&color=fff&bold=true`,
+              "Admin",
+              adm.department,
+              adm.jobTitle,
+              salt,
+              hash,
+              1, // Must change password on first login
+              "Active",
+              new Date().toISOString()
+            ]
+          );
+        } else {
+          await tx.execute(
+            "UPDATE users SET role = 'Admin', department = ?, job_title = ?, status = 'Active', must_change_password = 1 WHERE LOWER(email) = LOWER(?)",
+            [adm.department, adm.jobTitle, adm.email]
+          );
+        }
+      }
+
+      await tx.execute("INSERT INTO schema_migrations (version) VALUES (?)", ["008_add_user_status_and_soxit_admins"]);
+    });
+    console.log("[Database Migration] Successfully applied 008_add_user_status_and_soxit_admins.");
+  }
 }
+
