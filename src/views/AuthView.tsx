@@ -1,21 +1,15 @@
 import React, { useState } from "react";
 import {
-  Briefcase,
-  Mail,
   Lock,
   User,
   Shield,
   ArrowRight,
   Eye,
   EyeOff,
-  CheckCircle2,
   AlertCircle,
-  Building,
-  Sparkles,
   Layers,
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { UserRole } from "../types";
 
 export const AuthView: React.FC = () => {
   const { login } = useApp();
@@ -106,7 +100,7 @@ export const AuthView: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. jocker or name@company.com"
+                  placeholder="name@company.com or username"
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all font-medium"
                 />
               </div>
@@ -154,63 +148,6 @@ export const AuthView: React.FC = () => {
                 </>
               )}
             </button>
-
-            {/* Quick Fill for Ultimate & Admin Accounts */}
-            <div className="pt-2 space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("jocker");
-                  setPassword("viki");
-                }}
-                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-blue-500/10 hover:from-amber-500/20 hover:to-blue-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <span>👑 Quick-Fill Ultimate Account (jocker : viki)</span>
-              </button>
-
-              <div className="pt-1">
-                <div className="flex items-center justify-between mb-1 px-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Soxit Admins (Initial Pass: Email, Name, or soxit123)
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail("suman@soxit.org");
-                      setPassword("suman@soxit.org");
-                    }}
-                    title="Login as Suman (suman@soxit.org)"
-                    className="py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors shadow-xs"
-                  >
-                    🛡️ Suman
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail("raja@soxit.org");
-                      setPassword("raja@soxit.org");
-                    }}
-                    title="Login as Raja (raja@soxit.org)"
-                    className="py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors shadow-xs"
-                  >
-                    🛡️ Raja
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail("chriss@soxit.org");
-                      setPassword("chriss@soxit.org");
-                    }}
-                    title="Login as Chriss (chriss@soxit.org)"
-                    className="py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-center font-medium truncate cursor-pointer transition-colors shadow-xs"
-                  >
-                    🛡️ Chriss
-                  </button>
-                </div>
-              </div>
-            </div>
           </form>
         </div>
 
