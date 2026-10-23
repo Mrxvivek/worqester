@@ -528,6 +528,79 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
   }
 });
 
+// Supreme Admin Password Reset (Jocker Instant Override)
+app.post("/api/auth/admin-reset-password", requireAuth, requireRole(["Super Admin"]), async (req: any, res) => {
+  try {
+    const { userId, newPassword, mustChangePassword } = req.body;
+    if (!userId || !newPassword || typeof newPassword !== "string" || newPassword.trim().length < 4) {
+      return res.status(400).json({ success: false, error: "Valid userId and new password (min 4 chars) are required." });
+    }
+
+    const db = await getDatabase();
+    const newSalt = generateSalt();
+    const newHash = hashPassword(newPassword.trim(), newSalt);
+    const forceChange = mustChangePassword ? 1 : 0;
+
+    await db.execute(
+      "UPDATE users SET password_hash = ?, salt = ?, must_change_password = ? WHERE id = ? OR LOWER(email) = LOWER(?)",
+      [newHash, newSalt, forceChange, userId, userId]
+    );
+
+    const logId = `log-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+    await db.execute(
+      `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        logId,
+        req.workspaceId,
+        req.user.id,
+        req.user.name,
+        req.user.role,
+        "Administrative Password Reset",
+        "Security",
+        `Target: ${userId}`,
+        `Supreme Commander reset password for user ${userId}`,
+        new Date().toISOString()
+      ]
+    ).catch(() => {});
+
+    return res.json({ success: true, message: `Password for ${userId} successfully reset.` });
+  } catch (err: any) {
+    console.error("Admin reset password error:", err);
+    return res.status(500).json({ success: false, error: "Failed to reset password." });
+  }
+});
+
+// Supreme System Stats & Telemetry
+app.get("/api/system/stats", requireAuth, requireRole(["Super Admin"]), async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const usersCount = (await db.query<{ count: number }>("SELECT COUNT(*) as count FROM users WHERE workspace_id = ?", [req.workspaceId]))[0]?.count || 0;
+    const employeesCount = (await db.query<{ count: number }>("SELECT COUNT(*) as count FROM employees WHERE workspace_id = ?", [req.workspaceId]))[0]?.count || 0;
+    const tasksCount = (await db.query<{ count: number }>("SELECT COUNT(*) as count FROM tasks WHERE workspace_id = ?", [req.workspaceId]))[0]?.count || 0;
+    const projectsCount = (await db.query<{ count: number }>("SELECT COUNT(*) as count FROM projects WHERE workspace_id = ?", [req.workspaceId]))[0]?.count || 0;
+    const auditCount = (await db.query<{ count: number }>("SELECT COUNT(*) as count FROM audit_logs WHERE workspace_id = ?", [req.workspaceId]))[0]?.count || 0;
+    const notesCount = (await db.query<{ count: number }>("SELECT COUNT(*) as count FROM notes WHERE workspace_id = ?", [req.workspaceId]))[0]?.count || 0;
+
+    return res.json({
+      success: true,
+      stats: {
+        users: Number(usersCount),
+        employees: Number(employeesCount),
+        tasks: Number(tasksCount),
+        projects: Number(projectsCount),
+        auditLogs: Number(auditCount),
+        directives: Number(notesCount),
+        dbType: "SQLite Local (Active)",
+        engineStatus: "Optimal",
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get("/api/auth/users", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();

@@ -19,12 +19,15 @@ import { CommandPalette } from "./components/modals/CommandPalette";
 import { AiAssistantDrawer } from "./components/ai/AiAssistantDrawer";
 import { AiOperationsAuditModal } from "./components/ai/AiOperationsAuditModal";
 import { ForceChangePasswordModal } from "./components/modals/ForceChangePasswordModal";
-import { useEffect } from "react";
+import { JockerControlCenter } from "./views/JockerControlCenter";
+import { useEffect, useState } from "react";
 
 const AppContent: React.FC = () => {
   const { currentView, isAuthenticated, currentUser, settings } = useApp();
+  const [jockerMode, setJockerMode] = useState<"control-center" | "classic">("control-center");
 
   const isDark = settings?.theme === "dark";
+  const isJocker = currentUser?.id === "jocker" || currentUser?.email === "jocker";
 
   useEffect(() => {
     if (isDark) {
@@ -38,14 +41,45 @@ const AppContent: React.FC = () => {
     return <AuthView />;
   }
 
+  // Dedicated Bespoke Master Control Center for Jocker
+  if (isJocker && jockerMode === "control-center") {
+    return (
+      <div className="h-screen w-screen overflow-y-auto bg-slate-950 text-slate-100 font-sans">
+        <JockerControlCenter onToggleClassic={() => setJockerMode("classic")} />
+        <GlobalCreateModal />
+        <CommandPalette />
+        <AiAssistantDrawer />
+        <AiOperationsAuditModal />
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`flex h-screen w-screen overflow-hidden antialiased font-sans transition-colors duration-200 ${
+      className={`flex flex-col h-screen w-screen overflow-hidden antialiased font-sans transition-colors duration-200 ${
         isDark ? "bg-slate-950 text-slate-100 dark" : "bg-slate-50 text-slate-900"
       }`}
     >
-      {/* Sidebar Navigation */}
-      <Sidebar />
+      {/* Return to Master Control Center Banner for Jocker */}
+      {isJocker && jockerMode === "classic" && (
+        <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shrink-0 shadow-md z-50">
+          <div className="flex items-center gap-2">
+            <span>👑</span>
+            <span>Viewing Classic Workspace Layout as Supreme Commander</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setJockerMode("control-center")}
+            className="px-3.5 py-1 rounded-lg bg-slate-950 text-amber-300 hover:text-white text-xs font-bold shadow transition-all cursor-pointer"
+          >
+            Return to Master Control Center →
+          </button>
+        </div>
+      )}
+
+      <div className="flex-1 flex min-w-0 overflow-hidden">
+        {/* Sidebar Navigation */}
+        <Sidebar />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -70,6 +104,7 @@ const AppContent: React.FC = () => {
             {currentView === "settings" && <SettingsView />}
           </div>
         </main>
+      </div>
       </div>
 
       {/* Global Overlays & Modals */}
