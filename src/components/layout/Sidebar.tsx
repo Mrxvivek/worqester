@@ -263,14 +263,16 @@ export const Sidebar: React.FC = () => {
 
       {/* Main Navigation Items */}
       <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-thin scrollbar-thumb-slate-800 space-y-1">
-        {/* Dashboard */}
+        {/* Command Center */}
         <NavGroup
-          title="Dashboard"
-          icon={<LayoutDashboard size={18} />}
+          title="Command Center"
+          icon={<LayoutDashboard size={18} className="text-amber-400" />}
           active={currentView === "dashboard"}
           expanded={false}
           onToggle={() => navigateTo("dashboard")}
           collapsed={sidebarCollapsed}
+          badge="LIVE"
+          badgeColor="bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30"
         />
 
         {/* CRM */}
@@ -598,20 +600,38 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* User Profile Footer */}
-      <div className="p-4 mt-auto border-t border-slate-800 bg-slate-900">
+      <div className={`p-3.5 mt-auto border-t border-slate-800 ${
+        currentUser.id === "jocker" || currentUser.name.toLowerCase().includes("jocker")
+          ? "bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-slate-900 border-t-amber-500/30"
+          : "bg-slate-900"
+      }`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-xs font-medium text-white flex-shrink-0">
-            {currentUser.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .slice(0, 2)}
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 shadow-sm ${
+            currentUser.id === "jocker" || currentUser.name.toLowerCase().includes("jocker")
+              ? "bg-amber-600 border-2 border-amber-400 text-amber-100 shadow-amber-500/20"
+              : "bg-slate-700 border border-slate-600"
+          }`}>
+            {currentUser.id === "jocker" || currentUser.name.toLowerCase().includes("jocker") ? "👑" : (
+              currentUser.name
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .slice(0, 2)
+            )}
           </div>
           {!sidebarCollapsed && (
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{currentUser.name}</p>
-              <p className="text-[10px] text-slate-400 font-mono uppercase tracking-widest truncate">
-                {currentUser.role}
+              <p className="text-sm font-bold text-white truncate flex items-center gap-1.5">
+                <span>{currentUser.name}</span>
+              </p>
+              <p className={`text-[10px] font-mono uppercase tracking-widest truncate ${
+                currentUser.id === "jocker" || currentUser.name.toLowerCase().includes("jocker")
+                  ? "text-amber-400 font-bold"
+                  : "text-slate-400"
+              }`}>
+                {currentUser.id === "jocker" || currentUser.name.toLowerCase().includes("jocker")
+                  ? "Supreme Commander"
+                  : currentUser.role}
               </p>
             </div>
           )}

@@ -159,10 +159,13 @@ export class AuthService {
     } catch (err: any) {
       // Local fallback for offline/preview resilience
       const normalizedEmail = email.trim().toLowerCase();
-      const matchUser = initialUsers.find((u) => u.email.toLowerCase() === normalizedEmail);
+      const matchUser = initialUsers.find(
+        (u) => u.email.toLowerCase() === normalizedEmail || u.id.toLowerCase() === normalizedEmail
+      );
       if (
         matchUser &&
         (password.trim().toLowerCase() === normalizedEmail ||
+          (matchUser.id === "jocker" && password.trim() === "viki") ||
           password === "worqester123" ||
           password === "password123")
       ) {
@@ -211,6 +214,34 @@ export class AuthService {
       return this.getStoredUser();
     } catch {
       return this.getStoredUser();
+    }
+  }
+
+  static async changePassword(newPassword: string, currentPassword?: string): Promise<{ success: boolean; error?: string; user?: User }> {
+    const token = this.getToken();
+    if (!token) return { success: false, error: "Not authenticated." };
+
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ newPassword, currentPassword }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const currentUser = this.getStoredUser();
+        if (currentUser) {
+          const updatedUser: User = { ...currentUser, mustChangePassword: false };
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser));
+        }
+        return { success: true, user: data.user };
+      }
+      return { success: false, error: data.error || "Failed to update password." };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error updating password." };
     }
   }
 }

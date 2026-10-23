@@ -95,19 +95,19 @@ export const AuthView: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Work Email Address
+                Work Email or User ID
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Mail size={15} />
+                  <User size={15} />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@company.com"
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
+                  placeholder="e.g. jocker or name@company.com"
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all font-medium"
                 />
               </div>
             </div>
@@ -149,11 +149,25 @@ export const AuthView: React.FC = () => {
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>Sign In to Workspace</span>
+                  <span>Sign In to Command Center</span>
                   <ArrowRight size={14} />
                 </>
               )}
             </button>
+
+            {/* Quick Fill for Ultimate Account */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("jocker");
+                  setPassword("viki");
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-blue-500/10 hover:from-amber-500/20 hover:to-blue-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <span>👑 Quick-Fill Ultimate Account (jocker : viki)</span>
+              </button>
+            </div>
           </form>
         </div>
 

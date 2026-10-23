@@ -25,6 +25,7 @@ export interface User {
   department: string;
   jobTitle: string;
   organizationId: string;
+  mustChangePassword?: boolean;
 }
 
 export type HealthStatus = "Healthy" | "Watch" | "At Risk" | "Critical";
@@ -357,6 +358,9 @@ export interface NoteItem {
   tags: string[];
   pinned: boolean;
   linkedEntity?: string;
+  authorId?: string;
+  authorName?: string;
+  targetAudience?: "All" | "Employees" | "Executives" | "Project Managers" | string;
   updatedAt: string;
 }
 

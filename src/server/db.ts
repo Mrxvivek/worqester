@@ -785,4 +785,80 @@ export async function runMigrations(db: DatabaseAdapter): Promise<void> {
     });
     console.log("[Database Migration] Successfully applied 005_add_employee_eid_work_personal_email_and_team.");
   }
+
+  if (!applied.has("006_add_must_change_password_flag")) {
+    console.log("[Database Migration] Applying 006_add_must_change_password_flag...");
+    await db.transaction(async (tx) => {
+      await addColumnIfNotExists(tx, "users", "must_change_password", "INTEGER DEFAULT 0");
+      // Require all employee accounts to change password on first login
+      await tx.execute("UPDATE users SET must_change_password = 1 WHERE role = 'Employee'");
+      await tx.execute("INSERT INTO schema_migrations (version) VALUES (?)", ["006_add_must_change_password_flag"]);
+    });
+    console.log("[Database Migration] Successfully applied 006_add_must_change_password_flag.");
+  }
+
+  if (!applied.has("007_add_notes_documents_and_attendance_tables")) {
+    console.log("[Database Migration] Applying 007_add_notes_documents_and_attendance_tables...");
+    await db.transaction(async (tx) => {
+      // 1. Notes & Announcements (Shared across workspace users)
+      await tx.execute(`
+        CREATE TABLE IF NOT EXISTS notes (
+          id VARCHAR(64) PRIMARY KEY,
+          workspace_id VARCHAR(64) NOT NULL,
+          author_id VARCHAR(64),
+          author_name VARCHAR(255),
+          title VARCHAR(255) NOT NULL,
+          content TEXT,
+          tags TEXT,
+          target_audience VARCHAR(64) DEFAULT 'All',
+          pinned INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+      `);
+
+      // 2. Organization Documents
+      await tx.execute(`
+        CREATE TABLE IF NOT EXISTS documents (
+          id VARCHAR(64) PRIMARY KEY,
+          workspace_id VARCHAR(64) NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          category VARCHAR(128) DEFAULT 'General',
+          file_name VARCHAR(255),
+          file_size VARCHAR(64),
+          file_type VARCHAR(64),
+          version VARCHAR(32) DEFAULT '1.0',
+          uploaded_by VARCHAR(255),
+          uploaded_by_id VARCHAR(64),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+      `);
+
+      // 3. Daily Employee Attendance Logs
+      await tx.execute(`
+        CREATE TABLE IF NOT EXISTS attendance (
+          id VARCHAR(64) PRIMARY KEY,
+          workspace_id VARCHAR(64) NOT NULL,
+          user_id VARCHAR(64) NOT NULL,
+          user_name VARCHAR(255) NOT NULL,
+          date VARCHAR(32) NOT NULL,
+          check_in VARCHAR(32),
+          check_out VARCHAR(32),
+          status VARCHAR(32) DEFAULT 'Present',
+          work_mode VARCHAR(32) DEFAULT 'On-site',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+      `);
+
+      await tx.execute("CREATE INDEX IF NOT EXISTS idx_notes_ws ON notes(workspace_id, created_at);");
+      await tx.execute("CREATE INDEX IF NOT EXISTS idx_docs_ws ON documents(workspace_id, created_at);");
+      await tx.execute("CREATE INDEX IF NOT EXISTS idx_att_ws_user ON attendance(workspace_id, user_id, date);");
+      await tx.execute("INSERT INTO schema_migrations (version) VALUES (?)", ["007_add_notes_documents_and_attendance_tables"]);
+    });
+    console.log("[Database Migration] Successfully applied 007_add_notes_documents_and_attendance_tables.");
+  }
 }

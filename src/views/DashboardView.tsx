@@ -30,6 +30,21 @@ import {
   ExternalLink,
   FileText,
   UserCheck,
+  Radio,
+  Send,
+  Eye,
+  MousePointer,
+  LogIn,
+  LogOut,
+  Filter,
+  Search,
+  RefreshCw,
+  Pin,
+  Shield,
+  Layers,
+  Zap,
+  BookOpen,
+  X,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -72,7 +87,32 @@ export const DashboardView: React.FC = () => {
     attendance,
     updateTask,
     addTaskComment,
+    notes,
+    createNote,
+    auditLogs,
+    availableUsers,
   } = useApp();
+
+  const isJocker =
+    currentUser.id === "jocker" ||
+    currentUser.email?.toLowerCase() === "jocker" ||
+    currentUser.name.toLowerCase().includes("jocker");
+
+  // Command Center Navigation Tabs
+  const [commandTab, setCommandTab] = useState<"cockpit" | "audit" | "broadcasts" | "projects" | "sales" | "team">("cockpit");
+  const [employeeMode, setEmployeeMode] = useState<"personal" | "command">(isJocker ? "command" : "command");
+
+  // Quick Broadcast Announcement Modal State
+  const [isQuickPostOpen, setIsQuickPostOpen] = useState(false);
+  const [quickPostTitle, setQuickPostTitle] = useState("");
+  const [quickPostContent, setQuickPostContent] = useState("");
+  const [quickPostAudience, setQuickPostAudience] = useState<"All" | "Employees" | "Executives">("All");
+  const [quickPostPinned, setQuickPostPinned] = useState(true);
+
+  // Command Center Audit Subview State
+  const [cockpitAuditUserFilter, setCockpitAuditUserFilter] = useState<string>("all");
+  const [cockpitAuditCategory, setCockpitAuditCategory] = useState<string>("all");
+  const [cockpitAuditSearchQuery, setCockpitAuditSearchQuery] = useState<string>("");
 
   const todayIso = new Date().toISOString().split("T")[0];
   const [rangePreset, setRangePreset] = useState<RangePreset>("all");
@@ -81,6 +121,21 @@ export const DashboardView: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const isEmployee = currentUser.role === "Employee";
+
+  const handleQuickPostSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickPostTitle.trim()) return;
+    createNote({
+      title: quickPostTitle.trim(),
+      content: quickPostContent.trim(),
+      tags: ["Announcement", "Command Directive"],
+      targetAudience: quickPostAudience,
+      pinned: quickPostPinned,
+    });
+    setQuickPostTitle("");
+    setQuickPostContent("");
+    setIsQuickPostOpen(false);
+  };
 
   const handlePresetChange = (preset: RangePreset) => {
     setRangePreset(preset);
@@ -231,7 +286,7 @@ export const DashboardView: React.FC = () => {
     );
   }, [employees, currentUser]);
 
-  if (isEmployee) {
+  if (isEmployee && !isJocker && employeeMode === "personal") {
     return (
       <div className="space-y-6 pb-12">
         {/* Top Welcome & Quick Actions Bar */}
@@ -250,8 +305,18 @@ export const DashboardView: React.FC = () => {
             </p>
           </div>
 
-          {/* Right Controls: Presets + Quick Actions */}
           <div className="flex flex-col items-start lg:items-end gap-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEmployeeMode("command")}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Zap size={14} className="text-amber-300" />
+                <span>Switch to Command Center (See Everything)</span>
+              </button>
+            </div>
+
             {/* Time Filter Presets */}
             <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
               <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 px-2 py-0.5 text-[11px] font-medium border-r border-slate-200 dark:border-slate-700">
@@ -753,485 +818,1040 @@ export const DashboardView: React.FC = () => {
     );
   }
 
+  const userOptions = Array.from(
+    new Set([
+      ...availableUsers.map((u) => u.name),
+      ...employees.map((e) => e.fullName || `${e.firstName} ${e.lastName}`).filter(Boolean),
+      ...auditLogs.map((l) => l.userName).filter(Boolean),
+    ])
+  ).sort();
+
+  const filteredCockpitLogs = auditLogs.filter((log) => {
+    if (cockpitAuditUserFilter !== "all") {
+      const match =
+        log.userName?.toLowerCase() === cockpitAuditUserFilter.toLowerCase() ||
+        (log as any).userId === cockpitAuditUserFilter;
+      if (!match) return false;
+    }
+    if (cockpitAuditCategory !== "all") {
+      const act = log.action.toLowerCase();
+      if (cockpitAuditCategory === "sessions") {
+        if (!act.includes("login") && !act.includes("logout") && !act.includes("session")) return false;
+      } else if (cockpitAuditCategory === "clicks") {
+        if (!act.includes("click") && !act.includes("navigation") && !act.includes("view")) return false;
+      } else if (cockpitAuditCategory === "data") {
+        if (act.includes("login") || act.includes("logout") || act.includes("session") || act.includes("click") || act.includes("navigation")) return false;
+      }
+    }
+    if (cockpitAuditSearchQuery.trim()) {
+      const q = cockpitAuditSearchQuery.toLowerCase();
+      const match =
+        log.userName?.toLowerCase().includes(q) ||
+        log.action?.toLowerCase().includes(q) ||
+        log.details?.toLowerCase().includes(q) ||
+        log.entityName?.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
   return (
-    <div className="space-y-6 pb-12">
-      {/* Top Welcome & Quick Actions Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
-            <span>Executive Business Command Center</span>
-            <span>•</span>
-            <span className="font-mono text-slate-400">Worqester Cloud Core</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Welcome back, {currentUser.name}
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Real-time telemetry for {settings?.companyName || "Worqester Technologies"}: {kpis.activeProjects} active projects,{" "}
-            {periodDeals.length} sales opportunities, and {kpis.totalEmployees} team members.
-          </p>
-        </div>
-
-        {/* Right Section: Time Filter Presets on Top + Quick Action Buttons */}
-        <div className="flex flex-col items-start lg:items-end gap-3 shrink-0">
-          {/* Time Filter Presets Bar */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
-            <div className="flex items-center gap-1 text-slate-500 px-2 py-0.5 text-[11px] font-medium border-r border-slate-200">
-              <Calendar size={13} className="text-blue-600" />
-              <span>Timeframe:</span>
+    <div className="space-y-6 pb-12 font-sans">
+      {/* 1. TOP COMMAND CENTER HERO & STATUS BANNER */}
+      <div className={`p-6 rounded-2xl border transition-all shadow-xl backdrop-blur-md ${
+        isJocker
+          ? "bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/30 border-amber-500/40 shadow-amber-500/5 text-white"
+          : "bg-slate-900/90 dark:bg-slate-900/90 border-slate-800 text-white"
+      }`}>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold tracking-wide">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>COMMAND CENTER LIVE • ALL SYSTEMS ONLINE</span>
+              </span>
+              {isJocker && (
+                <span className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold tracking-tight flex items-center gap-1 shadow-xs">
+                  <Sparkles size={12} className="text-amber-300" />
+                  <span>SUPREME OVERLORD PRIVILEGES</span>
+                </span>
+              )}
             </div>
-            {[
-              { id: "today", label: "Today" },
-              { id: "7d", label: "7D" },
-              { id: "30d", label: "30D" },
-              { id: "quarter", label: "QTD" },
-              { id: "ytd", label: "YTD" },
-              { id: "all", label: "All Time" },
-            ].map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handlePresetChange(preset.id as any)}
-                className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all cursor-pointer ${
-                  rangePreset === preset.id
-                    ? "bg-white text-blue-600 shadow-xs border border-slate-200/80"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {preset.label}
-              </button>
-            ))}
+
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
+                {isJocker ? (
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-purple-300 to-blue-400">
+                    Jocker Executive Command Center
+                  </span>
+                ) : (
+                  <span>Executive Operations Command Center</span>
+                )}
+              </h1>
+              <p className="text-xs text-slate-400 mt-1">
+                Single Pane of Glass Telemetry for <strong className="text-slate-200">{settings?.companyName || "Worqester Technologies"}</strong> • Real-time visibility across {projects.length} workstreams, {deals.length} deals, {employees.length} personnel, and {auditLogs.length} audit transactions.
+              </p>
+            </div>
           </div>
 
-          {/* Quick Action Buttons */}
-          <div className="flex items-center flex-wrap gap-2.5">
-            {!userAttendedToday ? (
-              <button
-                type="button"
-                onClick={checkInCurrentUser}
-                className="px-3.5 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Clock size={14} className="text-emerald-600" />
-                <span>Mark Today's Check-In</span>
-              </button>
-            ) : (
-              <div className="px-3.5 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1.5">
-                <CheckCircle2 size={14} />
-                <span>Checked In (Active)</span>
+          {/* Quick Launchpad & Controls */}
+          <div className="flex flex-col sm:flex-row items-start lg:items-end gap-3 shrink-0">
+            {/* Timeframe Presets */}
+            <div className="flex items-center gap-1 p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
+              <div className="flex items-center gap-1 text-slate-400 px-2 py-0.5 text-[11px] font-medium border-r border-slate-800">
+                <Calendar size={13} className="text-blue-400" />
+                <span>Range:</span>
               </div>
-            )}
+              {[
+                { id: "today", label: "Today" },
+                { id: "7d", label: "7D" },
+                { id: "30d", label: "30D" },
+                { id: "all", label: "All Time" },
+              ].map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => handlePresetChange(preset.id as any)}
+                  className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all cursor-pointer ${
+                    rangePreset === preset.id
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
 
-            <button
-              type="button"
-              onClick={() => openCreateModal("task")}
-              className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
-            >
-              <Plus size={14} />
-              <span>New Task</span>
-            </button>
+            {/* Emergency & Quick Launch Buttons */}
+            <div className="flex items-center flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setIsQuickPostOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer active:scale-95 transition-all"
+                title="Broadcast an announcement across all user accounts"
+              >
+                <Radio size={14} className="text-slate-950" />
+                <span>Broadcast Post</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => navigateTo("settings", "data")}
-              className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Upload size={14} className="text-blue-600" />
-              <span>Upload Original Data</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setCommandTab("audit")}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                title="View live employee logins, clicks, and logout logs"
+              >
+                <Shield size={14} className="text-blue-400" />
+                <span>Employee Logs</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setIsAiAssistantOpen(true)}
-              className="px-3.5 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Sparkles size={14} className="text-indigo-600" />
-              <span>AI Briefing</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => openCreateModal("task")}
+                className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>New Task</span>
+              </button>
+
+              {!userAttendedToday ? (
+                <button
+                  type="button"
+                  onClick={checkInCurrentUser}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Clock size={14} />
+                  <span>Clock In</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={checkOutCurrentUser}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:bg-rose-950 hover:text-rose-300 hover:border-rose-800 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <CheckCircle2 size={14} className="text-emerald-400" />
+                  <span>Clock Out</span>
+                </button>
+              )}
+            </div>
           </div>
+        </div>
+
+        {/* 2. COMMAND CENTER TABS: SINGLE PANE OF GLASS NAVIGATION */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-5 border-t border-slate-800/80 scrollbar-none">
+          {[
+            { id: "cockpit", label: "🛰️ Unified Cockpit", count: null },
+            { id: "audit", label: "👥 Live Employee Logs & Audit Feed", count: auditLogs.length },
+            { id: "broadcasts", label: "📢 Workspace Directives & Posts", count: notes.length },
+            { id: "projects", label: "🚀 Projects Radar", count: projects.length },
+            { id: "sales", label: "💼 Commercial Pipeline", count: deals.length },
+            { id: "team", label: "🕒 Workforce & Attendance", count: employees.length },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setCommandTab(tab.id as any)}
+              className={`px-3.5 py-2 rounded-xl font-semibold text-xs whitespace-nowrap flex items-center gap-2 transition-all cursor-pointer ${
+                commandTab === tab.id
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-bold"
+                  : "bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800"
+              }`}
+            >
+              <span>{tab.label}</span>
+              {tab.count !== null && (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  commandTab === tab.id ? "bg-white/20 text-white" : "bg-slate-800 text-slate-400"
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3.5">
-        <KpiCard
-          title="Open Pipeline Value"
-          value={formatCurrency(periodPipelineValue, settings?.currency || "INR", settings?.currencySymbol || "₹")}
-          change={`${kpis.openDealsCount} Open Deals`}
-          trend="up"
-          comparisonPeriod={rangePreset === "all" ? "cumulative total" : `for ${rangePreset.toUpperCase()} window`}
-          icon={<DollarSign size={18} />}
-          iconBg="bg-blue-50 text-blue-600 border-blue-100"
-          onClick={() => navigateTo("crm", "pipeline")}
-        />
+      {/* 3. TAB CONTENT: UNIFIED COCKPIT (SEE EVERYTHING IN ONE PLACE) */}
+      {commandTab === "cockpit" && (
+        <div className="space-y-6">
+          {/* Top Vital HUD Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+            <KpiCard
+              title="Open Pipeline Value"
+              value={formatCurrency(periodPipelineValue, settings?.currency || "INR", settings?.currencySymbol || "₹")}
+              change={`${kpis.openDealsCount} Open Deals`}
+              trend="up"
+              comparisonPeriod={rangePreset === "all" ? "cumulative" : `for ${rangePreset}`}
+              icon={<DollarSign size={18} />}
+              iconBg="bg-blue-500/10 text-blue-400 border-blue-500/20"
+              onClick={() => setCommandTab("sales")}
+            />
 
-        <KpiCard
-          title="Won Revenue"
-          value={formatCurrency(periodWonRevenue, settings?.currency || "INR", settings?.currencySymbol || "₹")}
-          change={periodWonRevenue > 0 ? "Booked" : "0 Won"}
-          trend="up"
-          comparisonPeriod={rangePreset === "all" ? "all-time booked" : `${rangePreset.toUpperCase()} booked`}
-          icon={<Briefcase size={18} />}
-          iconBg="bg-emerald-50 text-emerald-600 border-emerald-100"
-          onClick={() => navigateTo("crm", "deals")}
-        />
+            <KpiCard
+              title="Won Booked Revenue"
+              value={formatCurrency(periodWonRevenue, settings?.currency || "INR", settings?.currencySymbol || "₹")}
+              change={periodWonRevenue > 0 ? "Booked" : "0 Won"}
+              trend="up"
+              comparisonPeriod="realized"
+              icon={<Briefcase size={18} />}
+              iconBg="bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              onClick={() => setCommandTab("sales")}
+            />
 
-        <KpiCard
-          title="Active Projects"
-          value={kpis.activeProjects}
-          subValue={`(${kpis.projectsAtRisk} At Risk)`}
-          change={kpis.projectsAtRisk > 0 ? `${kpis.projectsAtRisk} Need Attention` : "100% on track"}
-          trend={kpis.projectsAtRisk > 0 ? "down" : "up"}
-          comparisonPeriod=""
-          icon={<FolderKanban size={18} />}
-          iconBg="bg-purple-50 text-purple-600 border-purple-100"
-          onClick={() => navigateTo("projects", "all")}
-        />
+            <KpiCard
+              title="Active Projects"
+              value={kpis.activeProjects}
+              subValue={`(${kpis.projectsAtRisk} At Risk)`}
+              change={kpis.projectsAtRisk > 0 ? `${kpis.projectsAtRisk} Attention` : "100% on track"}
+              trend={kpis.projectsAtRisk > 0 ? "down" : "up"}
+              comparisonPeriod=""
+              icon={<FolderKanban size={18} />}
+              iconBg="bg-purple-500/10 text-purple-400 border-purple-500/20"
+              onClick={() => setCommandTab("projects")}
+            />
 
-        <KpiCard
-          title="Overdue Tasks"
-          value={periodOverdueTasks}
-          subValue={periodTasks.length > 0 ? `of ${periodTasks.length} in period` : `of ${tasks.length} total`}
-          change={periodOverdueTasks > 0 ? "SLA Breached" : "All SLA Clear"}
-          trend={periodOverdueTasks > 0 ? "down" : "up"}
-          comparisonPeriod=""
-          icon={<CheckSquare size={18} />}
-          iconBg="bg-rose-50 text-rose-600 border-rose-100"
-          onClick={() => navigateTo("tasks", "all")}
-        />
+            <KpiCard
+              title="Overdue Tasks"
+              value={periodOverdueTasks}
+              subValue={`of ${periodTasks.length} in period`}
+              change={periodOverdueTasks > 0 ? "SLA Breached" : "Clear"}
+              trend={periodOverdueTasks > 0 ? "down" : "up"}
+              comparisonPeriod=""
+              icon={<CheckSquare size={18} />}
+              iconBg="bg-rose-500/10 text-rose-400 border-rose-500/20"
+              onClick={() => navigateTo("tasks")}
+            />
 
-        <KpiCard
-          title="Total Headcount"
-          value={kpis.totalEmployees}
-          subValue={`${kpis.attendanceToday} In Office`}
-          change={`${kpis.activeEmployees} Active`}
-          trend="up"
-          comparisonPeriod="team roster"
-          icon={<Users size={18} />}
-          iconBg="bg-indigo-50 text-indigo-600 border-indigo-100"
-          onClick={() => navigateTo("hrm", "employees")}
-        />
+            <KpiCard
+              title="Total Workforce"
+              value={kpis.totalEmployees}
+              subValue={`${kpis.attendanceToday} In Office`}
+              change={`${kpis.activeEmployees} Active`}
+              trend="up"
+              comparisonPeriod="roster"
+              icon={<Users size={18} />}
+              iconBg="bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+              onClick={() => setCommandTab("team")}
+            />
 
-        <KpiCard
-          title="Health Score"
-          value={`${kpis.businessHealthScore}/100`}
-          change={kpis.businessHealthStatus}
-          trend={kpis.businessHealthScore >= 80 ? "up" : "down"}
-          comparisonPeriod="Stability Index"
-          icon={<ShieldCheck size={18} />}
-          iconBg={
-            kpis.businessHealthScore >= 80
-              ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-              : "bg-amber-50 text-amber-600 border-amber-100"
-          }
-          onClick={() => setIsAiAuditOpen(true)}
-        />
-      </div>
+            <KpiCard
+              title="Health Index"
+              value={`${kpis.businessHealthScore}/100`}
+              change={kpis.businessHealthStatus}
+              trend={kpis.businessHealthScore >= 80 ? "up" : "down"}
+              comparisonPeriod="Stability"
+              icon={<ShieldCheck size={18} />}
+              iconBg="bg-amber-500/10 text-amber-400 border-amber-500/20"
+              onClick={() => setIsAiAuditOpen(true)}
+            />
+          </div>
 
-      {/* Main Visualizations Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue Velocity & Sales Trend */}
-        <div className="lg:col-span-2 rounded-xl bg-white border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
+          {/* DUAL COLUMN COMMAND DECK */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left 7 Columns: Projects Portfolio + SLA Watchlist + Revenue Velocity */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Projects Portfolio Radar */}
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <FolderKanban size={16} className="text-blue-500" />
+                      <span>Projects Portfolio Radar</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Active workstreams, completion progress, and budget burn
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCommandTab("projects")}
+                    className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                  >
+                    View All ({projects.length})
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {projects.length === 0 ? (
+                    <p className="text-xs text-slate-500 py-4 text-center">No active projects registered.</p>
+                  ) : (
+                    projects.slice(0, 4).map((p) => (
+                      <div
+                        key={p.id}
+                        onClick={() => navigateTo("projects", "all")}
+                        className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 hover:border-blue-500 transition-all cursor-pointer space-y-2"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400 font-bold">
+                              {p.code}
+                            </span>
+                            <span className="font-bold text-slate-900 dark:text-white truncate">{p.name}</span>
+                          </div>
+                          <StatusBadge status={p.health} size="sm" />
+                        </div>
+
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              p.health === "Critical"
+                                ? "bg-rose-500"
+                                : p.health === "At Risk"
+                                ? "bg-amber-500"
+                                : "bg-blue-600"
+                            }`}
+                            style={{ width: `${p.progress}%` }}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                          <span>{p.progress}% Completed</span>
+                          <span>Spent: ₹{(p.spent / 100000).toFixed(1)}L / ₹{(p.budget / 100000).toFixed(1)}L</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Critical Deliverables & SLA Watchlist */}
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <AlertCircle size={16} className="text-rose-500" />
+                      <span>Critical Deliverables & SLA Watchlist</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      High-priority tasks requiring operational attention
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigateTo("tasks")}
+                    className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                  >
+                    Task Board
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {tasks.filter((t) => t.priority === "Critical" || t.priority === "High").slice(0, 4).map((task) => (
+                    <div
+                      key={task.id}
+                      onClick={() => navigateTo("tasks")}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 text-xs cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-all"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <PriorityBadge priority={task.priority} size="sm" />
+                          <span className="font-bold text-slate-900 dark:text-white truncate">{task.title}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {task.projectName} • Assigned to {task.assigneeName}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <StatusBadge status={task.status} size="sm" />
+                        <span className={`text-[10px] font-mono ${task.slaBreached ? "text-rose-500 font-bold" : "text-slate-500"}`}>
+                          Due {formatDate(task.dueDate)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Revenue Velocity Chart */}
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <TrendingUp size={16} className="text-emerald-500" />
+                      <span>Enterprise Revenue Velocity & Pipeline</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Closed revenue vs pipeline opportunities
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCommandTab("sales")}
+                    className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                  >
+                    Sales Deck
+                  </button>
+                </div>
+
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={pipelineTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="pipeGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} />
+                      <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v / 100000}L`} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#0f172a",
+                          borderColor: "#334155",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          color: "#ffffff",
+                        }}
+                        formatter={(val: any) => [formatCurrency(Number(val)), ""]}
+                      />
+                      <Area type="monotone" dataKey="pipeline" name="Pipeline" stroke="#3b82f6" strokeWidth={2} fill="url(#pipeGrad)" />
+                      <Area type="monotone" dataKey="revenue" name="Closed Revenue" stroke="#10b981" strokeWidth={2} fill="url(#revGrad)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Right 5 Columns: Workspace Broadcasts + Live Employee Activity Feed */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Workspace Broadcasts & Directives */}
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Radio size={16} className="text-amber-500" />
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Workspace Directives & Posts</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Company-wide broadcasts & announcements</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickPostOpen(true)}
+                    className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
+                  >
+                    <Plus size={12} /> Post
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {notes.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                      No broadcast directives posted yet. Click "Post" to broadcast across the organization.
+                    </div>
+                  ) : (
+                    notes.slice(0, 3).map((n) => (
+                      <div
+                        key={n.id}
+                        className={`p-3.5 rounded-xl border text-xs space-y-2 transition-all ${
+                          n.pinned
+                            ? "bg-amber-500/5 border-amber-500/30"
+                            : "bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-slate-900 dark:text-white truncate text-xs flex items-center gap-1.5">
+                            {n.pinned && <Pin size={12} className="text-amber-500 shrink-0" />}
+                            <span>{n.title}</span>
+                          </h4>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                            n.targetAudience === "Employees"
+                              ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+                              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          }`}>
+                            {n.targetAudience || "All"}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-300 text-[11px] line-clamp-2 leading-relaxed">
+                          {n.content}
+                        </p>
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400">
+                          <span>By <strong className="text-slate-700 dark:text-slate-300">{n.authorName || "Admin"}</strong></span>
+                          <span>{n.updatedAt}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCommandTab("broadcasts")}
+                  className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold text-center cursor-pointer transition-colors"
+                >
+                  View All Announcements ({notes.length})
+                </button>
+              </div>
+
+              {/* Live Employee Security & Activity Stream */}
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield size={16} className="text-blue-500" />
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Live Employee Activity Stream</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Logins, UI clicks, navigations & logouts</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
+                    LIVE
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                  {auditLogs.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400">
+                      No employee audit events recorded yet.
+                    </div>
+                  ) : (
+                    auditLogs.slice(0, 6).map((log) => {
+                      const act = log.action.toLowerCase();
+                      const isLogin = act.includes("login");
+                      const isLogout = act.includes("logout") || act.includes("exit");
+                      const isClick = act.includes("click");
+                      const isNav = act.includes("navigation") || act.includes("view");
+                      const isClock = act.includes("clock");
+
+                      let badgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                      let Icon = Activity;
+                      if (isLogin) {
+                        badgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+                        Icon = LogIn;
+                      } else if (isLogout) {
+                        badgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/30";
+                        Icon = LogOut;
+                      } else if (isClick) {
+                        badgeColor = "bg-purple-500/10 text-purple-400 border-purple-500/30";
+                        Icon = MousePointer;
+                      } else if (isNav) {
+                        badgeColor = "bg-sky-500/10 text-sky-400 border-sky-500/30";
+                        Icon = Eye;
+                      } else if (isClock) {
+                        badgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/30";
+                        Icon = Clock;
+                      }
+
+                      return (
+                        <div
+                          key={log.id}
+                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 flex items-start gap-2.5 text-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                        >
+                          <div className={`p-1.5 rounded-lg border ${badgeColor} shrink-0 mt-0.5`}>
+                            <Icon size={12} />
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-bold text-slate-900 dark:text-white truncate">{log.userName}</span>
+                              <span className="text-[10px] font-mono text-slate-400 shrink-0">{log.timestamp ? log.timestamp.split("T")[1]?.slice(0, 8) || log.timestamp : ""}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border ${badgeColor}`}>
+                                {log.action}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">[{log.entityName}]</span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight mt-0.5">{log.details}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCommandTab("audit")}
+                  className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold text-center cursor-pointer transition-colors"
+                >
+                  Open Full Employee Audit Monitor
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. TAB CONTENT: LIVE EMPLOYEE LOGS & AUDIT MONITOR */}
+      {commandTab === "audit" && (
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-5 text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                Enterprise Revenue Velocity & Pipeline Growth
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Shield size={18} className="text-blue-500" />
+                <span>Live Employee Activity & Security Feed</span>
               </h3>
-              <p className="text-xs text-slate-500">
-                Monthly closed revenue compared with expanding deal pipeline (in INR)
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Inspect every employee's journey: login timestamp, IP address, buttons clicked, view navigation, and logout
               </p>
             </div>
             <button
               type="button"
-              onClick={() => navigateTo("reports")}
-              className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 cursor-pointer"
+              onClick={() => navigateTo("settings", "audit")}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-semibold text-xs flex items-center gap-1.5 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
             >
-              <span>Full Analytics</span>
-              <ArrowRight size={13} />
+              <ExternalLink size={13} />
+              <span>Full Audit Settings</span>
             </button>
           </div>
 
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={pipelineTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="pipelineGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                <YAxis
-                  stroke="#94a3b8"
-                  fontSize={11}
-                  tickLine={false}
-                  tickFormatter={(v) => `₹${v / 100000}L`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#ffffff",
-                    borderColor: "#e2e8f0",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                    fontSize: "12px",
-                    color: "#0f172a",
-                  }}
-                  formatter={(value: any) => [formatCurrency(Number(value)), ""]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="pipeline"
-                  name="Pipeline"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#pipelineGrad)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  name="Closed Revenue"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#revenueGrad)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          {/* Filter Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Filter by Employee:</label>
+              <select
+                value={cockpitAuditUserFilter}
+                onChange={(e) => setCockpitAuditUserFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-semibold"
+              >
+                <option value="all">All Employees & Accounts ({userOptions.length} users)</option>
+                {userOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Event Category:</label>
+              <select
+                value={cockpitAuditCategory}
+                onChange={(e) => setCockpitAuditCategory(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-semibold"
+              >
+                <option value="all">All Categories</option>
+                <option value="sessions">🔑 Logins & Logouts</option>
+                <option value="clicks">🖱️ Clicks & Navigations</option>
+                <option value="data">📝 Data Operations</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Search Logs:</label>
+              <input
+                type="text"
+                value={cockpitAuditSearchQuery}
+                onChange={(e) => setCockpitAuditSearchQuery(e.target.value)}
+                placeholder="Search action or details..."
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs"
+              />
+            </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-around text-xs text-slate-600">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-              <span className="font-medium">
-                Total Pipeline ({formatCurrency(periodPipelineValue, settings?.currency || "INR", settings?.currencySymbol || "₹")})
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
-              <span className="font-medium">
-                Closed Realized ({formatCurrency(periodWonRevenue, settings?.currency || "INR", settings?.currencySymbol || "₹")})
-              </span>
-            </div>
+          {/* Stream list */}
+          <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+            {filteredCockpitLogs.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                No events found matching criteria.
+              </div>
+            ) : (
+              filteredCockpitLogs.map((log) => {
+                const act = log.action.toLowerCase();
+                const isLogin = act.includes("login");
+                const isLogout = act.includes("logout") || act.includes("exit");
+                const isClick = act.includes("click");
+                const isNav = act.includes("navigation") || act.includes("view");
+                const isClock = act.includes("clock");
+
+                let badgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                let Icon = Activity;
+                if (isLogin) {
+                  badgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+                  Icon = LogIn;
+                } else if (isLogout) {
+                  badgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/30";
+                  Icon = LogOut;
+                } else if (isClick) {
+                  badgeColor = "bg-purple-500/10 text-purple-400 border-purple-500/30";
+                  Icon = MousePointer;
+                } else if (isNav) {
+                  badgeColor = "bg-sky-500/10 text-sky-400 border-sky-500/30";
+                  Icon = Eye;
+                } else if (isClock) {
+                  badgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/30";
+                  Icon = Clock;
+                }
+
+                return (
+                  <div
+                    key={log.id}
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-blue-500/40 transition-colors"
+                  >
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div className={`p-2 rounded-lg border ${badgeColor} shrink-0`}>
+                        <Icon size={14} />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-slate-900 dark:text-white text-xs">{log.userName}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-sans">
+                            {log.userRole}
+                          </span>
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${badgeColor}`}>
+                            {log.action}
+                          </span>
+                          <span className="text-slate-400 font-mono text-[10px]">[{log.entityName}]</span>
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed">{log.details}</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono text-slate-400 shrink-0">{log.timestamp}</span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
+      )}
 
-        {/* Project Health & Milestone Burn */}
-        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
+      {/* 5. TAB CONTENT: WORKSPACE BROADCASTS & DIRECTIVES */}
+      {commandTab === "broadcasts" && (
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 text-xs">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                Project Portfolio Health
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Radio size={18} className="text-amber-500" />
+                <span>Workspace Directives & Shared Broadcasts</span>
               </h3>
-              <p className="text-xs text-slate-500">Real-time status & budget utilization</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Announcements and operational guidance distributed across all users and employee accounts
+              </p>
             </div>
             <button
               type="button"
-              onClick={() => navigateTo("projects", "all")}
-              className="text-xs text-blue-600 hover:text-blue-700 font-bold uppercase tracking-wider cursor-pointer"
+              onClick={() => setIsQuickPostOpen(true)}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
-              View All
+              <Plus size={14} /> New Announcement
             </button>
           </div>
 
-          <div className="space-y-3.5 flex-1">
-            {projects.length === 0 ? (
-              <div className="py-10 text-center space-y-2">
-                <p className="text-xs text-slate-500">No active projects yet. Start by adding your original project data.</p>
-                <button
-                  type="button"
-                  onClick={() => openCreateModal("project")}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus size={13} />
-                  <span>Create First Project</span>
-                </button>
-              </div>
-            ) : (
-              projects.slice(0, 4).map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => navigateTo("projects", "all")}
-                  className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 hover:border-slate-300 hover:bg-slate-100/60 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-mono text-[11px] text-blue-600 font-bold">
-                        {p.code}
-                      </span>
-                      <span className="font-semibold text-slate-800 truncate">{p.name}</span>
-                    </div>
-                    <StatusBadge status={p.health} size="sm" />
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${
-                        p.health === "Critical"
-                          ? "bg-rose-500"
-                          : p.health === "At Risk"
-                          ? "bg-amber-500"
-                          : "bg-blue-600"
-                      }`}
-                      style={{ width: `${p.progress}%` }}
-                    />
-                  </div>
-
-                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                    <span>{p.progress}% Completed</span>
-                    <span>
-                      Spent: ₹{(p.spent / 100000).toFixed(1)}L / ₹{(p.budget / 100000).toFixed(1)}L
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {notes.map((note) => (
+              <div
+                key={note.id}
+                className={`p-5 rounded-2xl border transition-all text-xs space-y-3 flex flex-col justify-between ${
+                  note.pinned
+                    ? "bg-amber-500/5 border-amber-500/40 shadow-sm"
+                    : "bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800"
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm tracking-tight flex items-center gap-1.5">
+                      {note.pinned && <Pin size={13} className="text-amber-500 shrink-0" />}
+                      <span>{note.title}</span>
+                    </h4>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                      note.targetAudience === "Employees"
+                        ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    }`}>
+                      {note.targetAudience || "All Members"}
                     </span>
                   </div>
+                  <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{note.content}</p>
                 </div>
-              ))
-            )}
-          </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500 font-medium">Total Portfolio Value</span>
-            <span className="font-bold text-slate-900 font-mono">
-              ₹{(projects.reduce((s, p) => s + p.budget, 0) / 10000000).toFixed(2)} Cr
-            </span>
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>Posted by <strong className="text-slate-700 dark:text-slate-300">{note.authorName || "Workspace Admin"}</strong></span>
+                  <span className="font-mono text-[10px]">{note.updatedAt}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Two Columns: Critical Action Items & Enterprise Activity Stream */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Critical Tasks & SLA Watchlist */}
-        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <AlertCircle size={16} className="text-rose-500" />
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                  High-Priority Deliverables & SLA Watchlist
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Critical operational tasks requiring attention today
-                </p>
-              </div>
+      {/* 6. TAB CONTENT: PROJECTS PORTFOLIO RADAR */}
+      {commandTab === "projects" && (
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 text-xs">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <FolderKanban size={18} className="text-blue-500" />
+                <span>Enterprise Projects Radar</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Portfolio health, delivery milestones, and financial burn
+              </p>
             </div>
             <button
               type="button"
-              onClick={() => navigateTo("tasks", "kanban")}
-              className="text-xs text-blue-600 hover:text-blue-700 font-bold uppercase tracking-wider cursor-pointer"
+              onClick={() => openCreateModal("project")}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
-              Task Board
+              <Plus size={14} /> New Project
             </button>
           </div>
 
-          <div className="space-y-2.5">
-            {tasks.filter((t) => t.priority === "Critical" || t.priority === "High").length === 0 ? (
-              <div className="py-8 text-center space-y-2">
-                <p className="text-xs text-slate-500">No high-priority tasks pending. Add tasks or import your data.</p>
-                <button
-                  type="button"
-                  onClick={() => openCreateModal("task")}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus size={13} />
-                  <span>Add Task</span>
-                </button>
-              </div>
-            ) : (
-              tasks
-                .filter((t) => t.priority === "Critical" || t.priority === "High")
-                .slice(0, 4)
-                .map((task) => (
-                  <div
-                    key={task.id}
-                    onClick={() => navigateTo("tasks", "kanban")}
-                    className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 hover:border-slate-300 hover:bg-slate-100/60 transition-colors cursor-pointer flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <PriorityBadge priority={task.priority} size="sm" />
-                        <span className="font-semibold text-slate-900 truncate">{task.title}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                        <span>{task.projectName}</span>
-                        <span>•</span>
-                        <span>Assigned to {task.assigneeName}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <StatusBadge status={task.status} size="sm" />
-                      <span
-                        className={`text-[10px] font-mono font-medium ${
-                          task.slaBreached ? "text-rose-600 font-bold" : "text-slate-500"
-                        }`}
-                      >
-                        Due {formatDate(task.dueDate)}
-                      </span>
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {projects.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => navigateTo("projects", "all")}
+                className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 hover:border-blue-500 transition-all cursor-pointer space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs text-blue-600 dark:text-blue-400 font-bold">{p.code}</span>
+                  <StatusBadge status={p.health} size="sm" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm">{p.name}</h4>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">{p.description || "Operational project delivery workstream."}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
+                    <span>Progress</span>
+                    <span>{p.progress}%</span>
                   </div>
-                ))
-            )}
-          </div>
-        </div>
-
-        {/* Live Enterprise Activity Stream */}
-        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Activity size={16} className="text-indigo-600" />
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                  Audit Log & Operations Stream
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Real-time events across CRM, HR, Projects, and Security
-                </p>
-              </div>
-            </div>
-            <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-mono font-semibold border border-emerald-200">
-              Live
-            </span>
-          </div>
-
-          <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-            {(activities || []).length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">
-                No operational activity logged yet. Events will appear here in real time as you create or upload records.
-              </div>
-            ) : (
-              (activities || []).slice(0, 5).map((act) => (
-                <div
-                  key={act.id || Math.random()}
-                  className="flex items-start gap-3 text-xs pb-3 border-b border-slate-100 last:border-0 last:pb-0"
-                >
-                  <div className="w-7 h-7 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 flex-shrink-0 mt-0.5 font-bold text-[10px]">
-                    {(act.userName || "U").charAt(0)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-800">{act.title || "Untitled Activity"}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{act.timestamp || ""}</span>
-                    </div>
-                    <p className="text-slate-600 text-[11px] mt-0.5">{act.description || ""}</p>
-                    <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
-                      <span>by {act.userName || "Team Member"}</span>
-                      {act.entityType && (
-                        <>
-                          <span>•</span>
-                          <span className="text-blue-600 font-medium">{act.entityType}: {act.entityName || "General"}</span>
-                        </>
-                      )}
-                    </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div className="h-full bg-blue-600 rounded-full" style={{ width: `${p.progress}%` }} />
                   </div>
                 </div>
-              ))
-            )}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-[11px] font-mono text-slate-500">
+                  <span>Budget: ₹{(p.budget / 100000).toFixed(1)}L</span>
+                  <span>Spent: ₹{(p.spent / 100000).toFixed(1)}L</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
+
+      {/* 7. TAB CONTENT: SALES & COMMERCIAL PIPELINE */}
+      {commandTab === "sales" && (
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 text-xs">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Briefcase size={18} className="text-emerald-500" />
+                <span>Commercial Pipeline & Opportunities</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Active commercial negotiations, deal stages, and realized revenue
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openCreateModal("deal")}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Plus size={14} /> New Deal
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {deals.map((d) => (
+              <div
+                key={d.id}
+                onClick={() => navigateTo("crm", "deals")}
+                className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 transition-all cursor-pointer space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(d.amount, settings?.currency || "INR", settings?.currencySymbol || "₹")}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">{d.stage}</span>
+                </div>
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">{d.name}</h4>
+                <p className="text-slate-500 text-[11px]">{d.companyName || "Enterprise Account"}</p>
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                  <span>Prob: {d.probability}%</span>
+                  <span>Close: {d.expectedCloseDate}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 8. TAB CONTENT: WORKFORCE & ATTENDANCE ROSTER */}
+      {commandTab === "team" && (
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 text-xs">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Users size={18} className="text-indigo-500" />
+                <span>Workforce Directory & Live Attendance Roster</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Staff capacity, attendance check-in logs, and operational assignments
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigateTo("hrm", "employees")}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Plus size={14} /> Full HRM Hub
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {employees.map((emp) => (
+              <div
+                key={emp.id}
+                className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold text-xs shrink-0">
+                    {(emp.fullName || emp.firstName || "E").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">{emp.fullName || `${emp.firstName} ${emp.lastName}`}</h4>
+                    <p className="text-slate-500 text-[11px] truncate">{emp.designation} • {emp.department}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 font-mono">
+                  <span>Mode: <strong className="text-slate-700 dark:text-slate-300">{emp.workMode || "On-site"}</strong></span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-[10px]">
+                    {emp.status || "Active"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* QUICK BROADCAST DIRECTIVE MODAL */}
+      {isQuickPostOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Radio size={16} className="text-amber-500" />
+                <span>Broadcast Workspace Directive</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsQuickPostOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickPostSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Announcement Headline:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={quickPostTitle}
+                  onChange={(e) => setQuickPostTitle(e.target.value)}
+                  placeholder="e.g. Q4 Executive Strategy Meeting / Product Launch"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Directive Details:
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={quickPostContent}
+                  onChange={(e) => setQuickPostContent(e.target.value)}
+                  placeholder="Write clear instructions, schedule, or company-wide announcements..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Target Audience:
+                  </label>
+                  <select
+                    value={quickPostAudience}
+                    onChange={(e) => setQuickPostAudience(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-semibold"
+                  >
+                    <option value="All">All Members (Company-Wide)</option>
+                    <option value="Employees">Employees Only</option>
+                    <option value="Executives">Executives & Leadership</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 pt-6">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 font-semibold text-xs">
+                    <input
+                      type="checkbox"
+                      checked={quickPostPinned}
+                      onChange={(e) => setQuickPostPinned(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Pin to top</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickPostOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Send size={13} />
+                  <span>Publish Directive</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Edit Task Modal Drawer for Executive/Manager View */}
       {editingTask && (
@@ -1251,3 +1871,4 @@ export const DashboardView: React.FC = () => {
     </div>
   );
 };
+

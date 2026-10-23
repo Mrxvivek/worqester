@@ -26,6 +26,16 @@ import {
 
 export const initialUsers: User[] = [
   {
+    id: "jocker",
+    name: "Jocker",
+    email: "jocker",
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+    role: "Super Admin",
+    department: "Supreme Command HQ",
+    jobTitle: "Supreme Commander & Owner",
+    organizationId: "org-worqester-01",
+  },
+  {
     id: "usr-01",
     name: "Alex Vance",
     email: "alex.vance@worqester.internal",

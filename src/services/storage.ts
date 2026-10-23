@@ -336,11 +336,26 @@ export class StorageService {
     const list = this.getAuditLogs();
     const newLog: AuditLogItem = {
       ...item,
-      id: `aud-${Date.now()}`,
+      id: `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       timestamp: new Date().toISOString().replace("T", " ").substring(0, 19),
     };
     list.unshift(newLog);
-    this.save(STORAGE_KEYS.AUDIT_LOGS, list.slice(0, 200));
+    this.save(STORAGE_KEYS.AUDIT_LOGS, list.slice(0, 300));
+
+    // Send to backend database asynchronously
+    try {
+      const token = localStorage.getItem("worqester_auth_token_v1");
+      if (token) {
+        fetch("/api/settings/audit-logs", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(newLog),
+        }).catch(() => {});
+      }
+    } catch {}
   }
 
   static saveAuditLogs(items: AuditLogItem[]): void {

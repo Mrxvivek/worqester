@@ -18,10 +18,11 @@ import { GlobalCreateModal } from "./components/modals/GlobalCreateModal";
 import { CommandPalette } from "./components/modals/CommandPalette";
 import { AiAssistantDrawer } from "./components/ai/AiAssistantDrawer";
 import { AiOperationsAuditModal } from "./components/ai/AiOperationsAuditModal";
+import { ForceChangePasswordModal } from "./components/modals/ForceChangePasswordModal";
 import { useEffect } from "react";
 
 const AppContent: React.FC = () => {
-  const { currentView, isAuthenticated, settings } = useApp();
+  const { currentView, isAuthenticated, currentUser, settings } = useApp();
 
   const isDark = settings?.theme === "dark";
 
@@ -76,6 +77,7 @@ const AppContent: React.FC = () => {
       <CommandPalette />
       <AiAssistantDrawer />
       <AiOperationsAuditModal />
+      {currentUser?.mustChangePassword && <ForceChangePasswordModal />}
     </div>
   );
 };

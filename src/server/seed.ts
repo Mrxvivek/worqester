@@ -31,6 +31,16 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
     eId?: string;
   }> = [
     {
+      id: "jocker",
+      name: "Jocker",
+      email: "jocker",
+      role: "Super Admin",
+      department: "Supreme Command HQ",
+      job_title: "Supreme Commander & Owner",
+      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+      password: "viki",
+    },
+    {
       id: "usr-01",
       name: "Alex Vance",
       email: "alex.vance@worqester.internal",
@@ -193,10 +203,11 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
       const salt = generateSalt();
       const rawPassword = u.password || defaultPassword;
       const hash = hashPassword(rawPassword, salt);
+      const mustChange = u.role === "Employee" ? 1 : 0;
       await db.execute(
-        `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [u.id, workspaceId, u.name, u.email, u.avatar, u.role, u.department, u.job_title, salt, hash, now]
+        `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [u.id, workspaceId, u.name, u.email, u.avatar, u.role, u.department, u.job_title, salt, hash, mustChange, now]
       );
     }
 

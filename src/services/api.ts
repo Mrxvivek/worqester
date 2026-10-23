@@ -14,6 +14,9 @@ import {
   UserInvitation,
   AuditLogItem,
   User,
+  NoteItem,
+  DocumentItem,
+  AttendanceRecord,
 } from "../types";
 
 export interface ApiResponse<T = any> {
@@ -334,17 +337,86 @@ export const SettingsApi = {
     return Boolean(res && res.success);
   },
 
-  getAuditLogs: async (): Promise<AuditLogItem[]> => {
-    const res = await apiRequest<{ success: boolean; auditLogs: AuditLogItem[] }>("/api/settings/audit-logs");
+  getAuditLogs: async (userId?: string, action?: string): Promise<AuditLogItem[]> => {
+    let url = "/api/settings/audit-logs";
+    const params = new URLSearchParams();
+    if (userId) params.append("userId", userId);
+    if (action) params.append("action", action);
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+
+    const res = await apiRequest<{ success: boolean; auditLogs: AuditLogItem[] }>(url);
     return res && res.success && res.auditLogs ? res.auditLogs : [];
   },
 
-  createAuditLog: async (log: Partial<AuditLogItem>): Promise<boolean> => {
+  createAuditLog: async (log: Partial<AuditLogItem> | Partial<AuditLogItem>[]): Promise<boolean> => {
     const res = await apiRequest("/api/settings/audit-logs", {
       method: "POST",
       body: JSON.stringify(log),
     });
     return Boolean(res && res.success);
+  },
+};
+
+export const NotesApi = {
+  getNotes: async (): Promise<NoteItem[]> => {
+    const res = await apiRequest<{ success: boolean; notes: NoteItem[] }>("/api/notes");
+    return res && res.success && res.notes ? res.notes : [];
+  },
+  createNote: async (note: Partial<NoteItem>): Promise<NoteItem | null> => {
+    const res = await apiRequest<{ success: boolean; note: NoteItem }>("/api/notes", {
+      method: "POST",
+      body: JSON.stringify(note),
+    });
+    return res && res.success && res.note ? res.note : null;
+  },
+  updateNote: async (id: string, data: Partial<NoteItem>): Promise<boolean> => {
+    const res = await apiRequest(`/api/notes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    return Boolean(res && res.success);
+  },
+  deleteNote: async (id: string): Promise<boolean> => {
+    const res = await apiRequest(`/api/notes/${id}`, { method: "DELETE" });
+    return Boolean(res && res.success);
+  },
+};
+
+export const DocumentsApi = {
+  getDocuments: async (): Promise<DocumentItem[]> => {
+    const res = await apiRequest<{ success: boolean; documents: DocumentItem[] }>("/api/documents");
+    return res && res.success && res.documents ? res.documents : [];
+  },
+  createDocument: async (doc: Partial<DocumentItem>): Promise<DocumentItem | null> => {
+    const res = await apiRequest<{ success: boolean; document: DocumentItem }>("/api/documents", {
+      method: "POST",
+      body: JSON.stringify(doc),
+    });
+    return res && res.success && res.document ? res.document : null;
+  },
+  deleteDocument: async (id: string): Promise<boolean> => {
+    const res = await apiRequest(`/api/documents/${id}`, { method: "DELETE" });
+    return Boolean(res && res.success);
+  },
+};
+
+export const AttendanceApi = {
+  getAttendance: async (): Promise<AttendanceRecord[]> => {
+    const res = await apiRequest<{ success: boolean; attendance: AttendanceRecord[] }>("/api/attendance");
+    return res && res.success && res.attendance ? res.attendance : [];
+  },
+  checkIn: async (): Promise<string | null> => {
+    const res = await apiRequest<{ success: boolean; checkIn: string }>("/api/attendance/check-in", {
+      method: "POST",
+    });
+    return res && res.success && res.checkIn ? res.checkIn : null;
+  },
+  checkOut: async (): Promise<string | null> => {
+    const res = await apiRequest<{ success: boolean; checkOut: string }>("/api/attendance/check-out", {
+      method: "POST",
+    });
+    return res && res.success && res.checkOut ? res.checkOut : null;
   },
 };
 

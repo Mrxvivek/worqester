@@ -28,7 +28,8 @@ import {
 } from "../types";
 import { StorageService } from "../services/storage";
 import { AuthService } from "../services/auth";
-import { CrmApi, ProjectsApi, TasksApi, HrmApi, SettingsApi } from "../services/api";
+import { CrmApi, ProjectsApi, TasksApi, HrmApi, SettingsApi, NotesApi, DocumentsApi, AttendanceApi } from "../services/api";
+import { ActivityTracker } from "../services/activityTracker";
 
 export interface Notification {
   id: string;
@@ -44,6 +45,7 @@ interface AppContextType {
   currentUser: User;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (newPassword: string, currentPassword?: string) => Promise<{ success: boolean; error?: string }>;
   signup: (data: {
     name: string;
     email: string;
@@ -214,6 +216,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invitationsRes,
         rbacRes,
         auditRes,
+        notesRes,
+        docsRes,
+        attRes,
       ] = await Promise.allSettled([
         CrmApi.getDeals(),
         CrmApi.getLeads(),
@@ -227,6 +232,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         SettingsApi.getInvitations(),
         SettingsApi.getRbac(),
         SettingsApi.getAuditLogs(),
+        NotesApi.getNotes(),
+        DocumentsApi.getDocuments(),
+        AttendanceApi.getAttendance(),
       ]);
 
       if (dealsRes.status === "fulfilled" && Array.isArray(dealsRes.value)) {
@@ -277,13 +285,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAuditLogs(auditRes.value);
         StorageService.saveAuditLogs(auditRes.value);
       }
+      if (notesRes.status === "fulfilled" && Array.isArray(notesRes.value)) {
+        setNotes(notesRes.value);
+        StorageService.saveNotes(notesRes.value);
+      }
+      if (docsRes.status === "fulfilled" && Array.isArray(docsRes.value)) {
+        setDocuments(docsRes.value);
+        StorageService.saveDocuments(docsRes.value);
+      }
+      if (attRes.status === "fulfilled" && Array.isArray(attRes.value)) {
+        setAttendance(attRes.value);
+        StorageService.saveAttendance(attRes.value);
+      }
     } catch (e) {
       console.warn("syncFromBackend warning:", e);
     }
   };
 
-  // Check auth session and sync backend data on startup
+  // Check auth session, init activity tracking, and sync backend data
   useEffect(() => {
+    ActivityTracker.init();
+
     const verifyAndSync = async () => {
       if (AuthService.isAuthenticated()) {
         const verified = await AuthService.verifySession();
@@ -295,6 +317,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await syncFromBackend();
     };
     verifyAndSync();
+
+    // Auto-sync polling every 12 seconds so posts & updates from other users reflect in real time
+    const interval = setInterval(() => {
+      if (AuthService.isAuthenticated()) {
+        syncFromBackend();
+      }
+    }, 12000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Entities state
@@ -414,6 +445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedEntityId(entityId);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
+    ActivityTracker.trackNavigation(view, subView);
   };
 
   const login = async (email: string, password: string) => {
@@ -441,6 +473,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: true };
     }
     return { success: false, error: res.error || "Invalid credentials." };
+  };
+
+  const changePassword = async (newPassword: string, currentPassword?: string) => {
+    const res = await AuthService.changePassword(newPassword, currentPassword);
+    if (res.success) {
+      if (currentUser) {
+        const updated: User = { ...currentUser, mustChangePassword: false };
+        setCurrentUser(updated);
+        const updatedList = availableUsers.map((u) => (u.id === updated.id ? updated : u));
+        setAvailableUsers(updatedList);
+        StorageService.saveUsers(updatedList);
+      }
+      return { success: true };
+    }
+    return { success: false, error: res.error || "Failed to update password." };
   };
 
   const signup = async (data: {
@@ -1099,11 +1146,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newNote: NoteItem = {
       ...data,
       id: `note-${Date.now()}`,
+      authorName: currentUser.name,
       updatedAt: new Date().toISOString().split("T")[0],
     };
     const list = [newNote, ...notes];
     StorageService.saveNotes(list);
     setNotes(list);
+    NotesApi.createNote(newNote).then((created) => {
+      if (created) {
+        setNotes((prev) => prev.map((n) => (n.id === newNote.id ? created : n)));
+      }
+    }).catch((e) => console.error("API createNote error:", e));
+    StorageService.addAuditLog({
+      userName: currentUser.name,
+      userRole: currentUser.role,
+      action: "Posted Note",
+      entityType: "Notes",
+      entityName: newNote.title,
+      details: `Published note "${newNote.title}" to workspace.`,
+    });
     refreshData();
   };
 
@@ -1113,6 +1174,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     StorageService.saveNotes(list);
     setNotes(list);
+    NotesApi.updateNote(id, data).catch((e) => console.error("API updateNote error:", e));
+    StorageService.addAuditLog({
+      userName: currentUser.name,
+      userRole: currentUser.role,
+      action: "Updated Note",
+      entityType: "Notes",
+      entityName: id,
+      details: `Updated note content/pin status.`,
+    });
     refreshData();
   };
 
@@ -1121,10 +1191,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...doc,
       id: `doc-${Date.now()}`,
       uploadedAt: new Date().toISOString().split("T")[0],
+      uploadedBy: currentUser.name,
     };
     const list = [newDoc, ...documents];
     StorageService.saveDocuments(list);
     setDocuments(list);
+    DocumentsApi.createDocument(newDoc).then((created) => {
+      if (created) {
+        setDocuments((prev) => prev.map((d) => (d.id === newDoc.id ? created : d)));
+      }
+    }).catch((e) => console.error("API createDocument error:", e));
+    StorageService.addAuditLog({
+      userName: currentUser.name,
+      userRole: currentUser.role,
+      action: "Uploaded Document",
+      entityType: "Documents",
+      entityName: newDoc.title || newDoc.name || "Document",
+      details: `Uploaded new document to company workspace.`,
+    });
     refreshData();
   };
 
@@ -1173,10 +1257,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const filtered = documents.filter((d) => d.id !== id);
       StorageService.saveDocuments(filtered);
       setDocuments(filtered);
+      DocumentsApi.deleteDocument(id).catch((e) => console.error("API deleteDocument error:", e));
     } else if (type === "note") {
       const filtered = notes.filter((n) => n.id !== id);
       StorageService.saveNotes(filtered);
       setNotes(filtered);
+      NotesApi.deleteNote(id).catch((e) => console.error("API deleteNote error:", e));
     } else if (type === "asset") {
       deleteAsset(id);
     } else if (type === "candidate") {
@@ -1194,34 +1280,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       action: "Deleted Item",
       entityType: type,
       entityName: id,
-      details: `Soft deleted ${type} record ID: ${id}.`,
+      details: `Deleted ${type} record ID: ${id}.`,
     });
     refreshData();
   };
 
-
   const checkInCurrentUser = () => {
+    const today = new Date().toISOString().split("T")[0];
+    const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const record: AttendanceRecord = {
       id: `att-${Date.now()}`,
       employeeId: currentUser.id,
       employeeName: currentUser.name,
-      date: new Date().toISOString().split("T")[0],
-      checkIn: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      date: today,
+      checkIn: nowTime,
       totalHours: 0,
       status: "Present",
       workMode: "Office",
     };
-    const list = [record, ...attendance];
+    const list = [record, ...attendance.filter((a) => !(a.employeeId === currentUser.id && a.date === today))];
     StorageService.saveAttendance(list);
     setAttendance(list);
+    AttendanceApi.checkIn().catch((e) => console.error("API checkIn error:", e));
+    StorageService.addAuditLog({
+      userName: currentUser.name,
+      userRole: currentUser.role,
+      action: "Clocked In",
+      entityType: "Attendance",
+      entityName: today,
+      details: `${currentUser.name} clocked in at ${nowTime}.`,
+    });
+    refreshData();
   };
 
   const checkOutCurrentUser = () => {
+    const today = new Date().toISOString().split("T")[0];
+    const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const list = attendance.map((a) => {
-      if (a.employeeName === currentUser.name) {
+      if (a.employeeName === currentUser.name || a.employeeId === currentUser.id) {
         return {
           ...a,
-          checkOut: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          checkOut: nowTime,
           totalHours: 8.5,
         };
       }
@@ -1229,6 +1328,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     StorageService.saveAttendance(list);
     setAttendance(list);
+    AttendanceApi.checkOut().catch((e) => console.error("API checkOut error:", e));
+    StorageService.addAuditLog({
+      userName: currentUser.name,
+      userRole: currentUser.role,
+      action: "Clocked Out",
+      entityType: "Attendance",
+      entityName: today,
+      details: `${currentUser.name} clocked out at ${nowTime}.`,
+    });
+    refreshData();
   };
 
   const resetDemoData = () => {
@@ -1285,6 +1394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentUser,
         isAuthenticated,
         login,
+        changePassword,
         signup,
         logout,
         switchUser,
