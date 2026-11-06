@@ -911,7 +911,7 @@ export async function runMigrations(db: DatabaseAdapter): Promise<void> {
           );
         } else {
           await tx.execute(
-            "UPDATE users SET role = 'Admin', department = ?, job_title = ?, status = 'Active', must_change_password = 1 WHERE LOWER(email) = LOWER(?)",
+            "UPDATE users SET role = 'Admin', department = ?, job_title = ?, status = 'Active' WHERE LOWER(email) = LOWER(?)",
             [adm.department, adm.jobTitle, adm.email]
           );
         }
@@ -920,6 +920,32 @@ export async function runMigrations(db: DatabaseAdapter): Promise<void> {
       await tx.execute("INSERT INTO schema_migrations (version) VALUES (?)", ["008_add_user_status_and_soxit_admins"]);
     });
     console.log("[Database Migration] Successfully applied 008_add_user_status_and_soxit_admins.");
+  }
+
+  if (!applied.has("009_add_password_reset_requests_table")) {
+    console.log("[Database Migration] Applying 009_add_password_reset_requests_table...");
+    await db.transaction(async (tx) => {
+      await tx.execute(`
+        CREATE TABLE IF NOT EXISTS password_reset_requests (
+          id VARCHAR(64) PRIMARY KEY,
+          workspace_id VARCHAR(64) NOT NULL,
+          user_id VARCHAR(64) NOT NULL,
+          user_name VARCHAR(255) NOT NULL,
+          user_email VARCHAR(255) NOT NULL,
+          user_role VARCHAR(64) NOT NULL,
+          department VARCHAR(128),
+          reason TEXT,
+          status VARCHAR(32) DEFAULT 'Pending',
+          temp_password VARCHAR(255),
+          reviewed_by VARCHAR(64),
+          reviewed_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+      `);
+      await tx.execute("INSERT INTO schema_migrations (version) VALUES (?)", ["009_add_password_reset_requests_table"]);
+    });
+    console.log("[Database Migration] Successfully applied 009_add_password_reset_requests_table.");
   }
 }
 

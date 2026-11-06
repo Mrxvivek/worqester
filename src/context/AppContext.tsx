@@ -203,6 +203,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncFromBackend = async () => {
     try {
+      const isUserAdminOrAbove =
+        currentUser.id === "jocker" ||
+        currentUser.email?.toLowerCase() === "jocker" ||
+        currentUser.role === "Admin" ||
+        currentUser.role === "Super Admin";
+
       const [
         dealsRes,
         leadsRes,
@@ -231,7 +237,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         HrmApi.getCandidates(),
         SettingsApi.getInvitations(),
         SettingsApi.getRbac(),
-        SettingsApi.getAuditLogs(),
+        isUserAdminOrAbove ? SettingsApi.getAuditLogs() : Promise.resolve([]),
         NotesApi.getNotes(),
         DocumentsApi.getDocuments(),
         AttendanceApi.getAttendance(),
@@ -281,7 +287,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setRbacPermissions(rbacRes.value);
         StorageService.saveRbacPermissions(rbacRes.value);
       }
-      if (auditRes.status === "fulfilled" && Array.isArray(auditRes.value)) {
+      if (!isUserAdminOrAbove) {
+        setAuditLogs([]);
+        StorageService.saveAuditLogs([]);
+      } else if (auditRes.status === "fulfilled" && Array.isArray(auditRes.value)) {
         setAuditLogs(auditRes.value);
         StorageService.saveAuditLogs(auditRes.value);
       }
@@ -383,6 +392,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user) {
       setCurrentUser(user);
       StorageService.setCurrentUserId(userId);
+      const isSwitchAdmin =
+        user.id === "jocker" ||
+        user.email?.toLowerCase() === "jocker" ||
+        user.role === "Admin" ||
+        user.role === "Super Admin";
+      if (!isSwitchAdmin) {
+        setAuditLogs([]);
+        StorageService.saveAuditLogs([]);
+      }
       StorageService.addAuditLog({
         userName: user.name,
         userRole: user.role,
@@ -468,6 +486,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         entityName: res.user.email,
         details: `User signed in successfully.`,
       });
+      const isUserAdminOrAbove =
+        res.user.id === "jocker" ||
+        res.user.email?.toLowerCase() === "jocker" ||
+        res.user.role === "Admin" ||
+        res.user.role === "Super Admin";
+      if (!isUserAdminOrAbove) {
+        setAuditLogs([]);
+        StorageService.saveAuditLogs([]);
+      }
       refreshData();
       await syncFromBackend();
       return { success: true };

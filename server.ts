@@ -389,25 +389,24 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
     const isSoxit = user.email.toLowerCase().endsWith("@soxit.org");
 
     if (!isMatch) {
-      if (isSoxit) {
-        const allowedFirstPasswords = [
-          user.email.toLowerCase(),
-          userHandle,
-          user.name.toLowerCase(),
-          "soxit123",
-          "password123",
-          "admin123",
-          "admin@123",
-          "admin@12345",
-          "admin"
-        ];
-        if (allowedFirstPasswords.includes(cleanPass)) {
-          isMatch = true;
-          // When logging in with initial temporary password, require password change
-          user.must_change_password = 1;
-        }
-      } else if (Boolean(user.must_change_password)) {
-        if (user.email.endsWith("@worqester.internal") || user.email.endsWith("@worqester.io")) {
+      // Temporary/initial credentials strictly ONLY apply when must_change_password is 1 (first-time login or admin-reset account)
+      if (Boolean(user.must_change_password)) {
+        if (isSoxit) {
+          const allowedFirstPasswords = [
+            user.email.toLowerCase(),
+            userHandle,
+            user.name.toLowerCase(),
+            "soxit123",
+            "password123",
+            "admin123",
+            "admin@123",
+            "admin@12345",
+            "admin"
+          ];
+          if (allowedFirstPasswords.includes(cleanPass)) {
+            isMatch = true;
+          }
+        } else if (user.email.endsWith("@worqester.internal") || user.email.endsWith("@worqester.io")) {
           if (demoAcceptedPasswords.includes(password.trim())) {
             isMatch = true;
           }
@@ -416,8 +415,12 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
         }
       }
     }
+
     if (!isMatch) {
-      return res.status(401).json({ success: false, error: "Invalid email or password. Please check your credentials." });
+      return res.status(401).json({
+        success: false,
+        error: "Invalid email or password. If you forgot your password, click 'Request Reset from Admin' below."
+      });
     }
 
     const rawToken = generateToken();
@@ -525,28 +528,29 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
 
     const u = users[0];
     const uHandle = u.email.includes("@") ? u.email.split("@")[0].toLowerCase() : u.email.toLowerCase();
-    if (currentPassword) {
+    const isFirstLogin = Boolean(u.must_change_password);
+
+    if (currentPassword && currentPassword.trim()) {
       const cleanCurrent = currentPassword.trim().toLowerCase();
       const isMatch =
         verifyPassword(currentPassword, u.salt, u.password_hash) ||
         verifyPassword(currentPassword.trim(), u.salt, u.password_hash) ||
-        (u.email.toLowerCase().endsWith("@soxit.org") && (
-          cleanCurrent === u.email.toLowerCase() ||
-          cleanCurrent === uHandle ||
-          cleanCurrent === u.name.toLowerCase() ||
-          cleanCurrent === "soxit123" ||
-          cleanCurrent === "admin123" ||
-          cleanCurrent === "admin" ||
-          cleanCurrent === "password123"
-        )) ||
-        currentPassword === "password123" ||
-        currentPassword === "worqester123";
+        cleanCurrent === u.email.toLowerCase() ||
+        cleanCurrent === uHandle ||
+        cleanCurrent === u.name.toLowerCase() ||
+        cleanCurrent === "soxit123" ||
+        cleanCurrent === "admin123" ||
+        cleanCurrent === "admin" ||
+        cleanCurrent === "password123" ||
+        cleanCurrent === "worqester123";
       if (!isMatch) {
-        return res.status(400).json({ success: false, error: "Current password does not match." });
+        return res.status(400).json({ success: false, error: "Current / temporary password does not match." });
       }
-      if (currentPassword === newPassword) {
+      if (currentPassword.trim() === newPassword.trim()) {
         return res.status(400).json({ success: false, error: "New password must be different from current password." });
       }
+    } else if (!isFirstLogin) {
+      return res.status(400).json({ success: false, error: "Current password is required to change password." });
     }
 
     const newSalt = generateSalt();
@@ -569,6 +573,199 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
   } catch (err: any) {
     console.error("Change password error:", err);
     return res.status(500).json({ success: false, error: "Failed to update password." });
+  }
+});
+
+// ----------------------------------------------------
+// Password Reset Request Endpoints (Employee to Admin)
+// ----------------------------------------------------
+app.post("/api/auth/request-reset", authRateLimiter, async (req, res) => {
+  try {
+    const { email, reason } = req.body;
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({ success: false, error: "Email or User ID is required." });
+    }
+
+    const db = await getDatabase();
+    const normalizedInput = email.trim().toLowerCase();
+    const alternateEmail = normalizedInput.endsWith("@worqester.io")
+      ? normalizedInput.replace("@worqester.io", "@worqester.internal")
+      : normalizedInput.endsWith("@worqester.internal")
+      ? normalizedInput.replace("@worqester.internal", "@worqester.io")
+      : normalizedInput;
+    const soxitEmail = normalizedInput.includes("@") ? normalizedInput : `${normalizedInput}@soxit.org`;
+    const adminId = `usr-admin-${normalizedInput.replace(/^usr-admin-/, "")}`;
+
+    const users = await db.query<any>(
+      "SELECT id, workspace_id, name, email, role, department FROM users WHERE LOWER(email) = ? OR LOWER(email) = ? OR LOWER(email) = ? OR LOWER(id) = ? OR LOWER(id) = ? OR LOWER(name) = ?",
+      [normalizedInput, alternateEmail, soxitEmail, normalizedInput, adminId, normalizedInput]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, error: "No employee or user found matching this email or ID." });
+    }
+
+    const user = users[0];
+
+    // Check if there is already a Pending request
+    const existingRequests = await db.query<any>(
+      "SELECT id, status, created_at FROM password_reset_requests WHERE user_id = ? AND status = 'Pending'",
+      [user.id]
+    );
+
+    if (existingRequests.length > 0) {
+      return res.json({
+        success: true,
+        alreadyPending: true,
+        message: `A password reset request for ${user.name} is already pending administrator approval.`,
+        requestId: existingRequests[0].id
+      });
+    }
+
+    const reqId = `pwd-req-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+    const now = new Date().toISOString();
+    const requestReason = reason && typeof reason === "string" && reason.trim() ? reason.trim() : "Employee requested password reset from login portal.";
+
+    await db.execute(
+      `INSERT INTO password_reset_requests (id, workspace_id, user_id, user_name, user_email, user_role, department, reason, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)`,
+      [reqId, user.workspace_id, user.id, user.name, user.email, user.role, user.department || "General", requestReason, now]
+    );
+
+    // Audit log
+    const logId = `log-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+    await db.execute(
+      `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [logId, user.workspace_id, user.id, user.name, user.role, "Password Reset Request", "AuthSecurity", user.email, `Reset request submitted by ${user.name} (${user.email}). Awaiting admin review.`, now]
+    ).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: `Password reset request submitted successfully. Administrator has been notified to reset credentials for ${user.name}.`,
+      requestId: reqId
+    });
+  } catch (err: any) {
+    console.error("Password reset request error:", err);
+    return res.status(500).json({ success: false, error: "Failed to submit password reset request." });
+  }
+});
+
+app.get("/api/auth/reset-requests", requireAuth, requireRole(["Admin", "Super Admin", "Executive"]), async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const requests = await db.query<any>(
+      `SELECT id, workspace_id as "workspaceId", user_id as "userId", user_name as "userName", user_email as "userEmail", user_role as "userRole", department, reason, status, temp_password as "tempPassword", reviewed_by as "reviewedBy", reviewed_at as "reviewedAt", created_at as "createdAt"
+       FROM password_reset_requests
+       WHERE workspace_id = ?
+       ORDER BY CASE WHEN status = 'Pending' THEN 0 ELSE 1 END, created_at DESC
+       LIMIT 100`,
+      [req.workspaceId]
+    );
+    return res.json({ success: true, requests });
+  } catch (err: any) {
+    console.error("Fetch reset requests error:", err);
+    return res.status(500).json({ success: false, error: "Failed to fetch password reset requests." });
+  }
+});
+
+app.post("/api/auth/resolve-reset-request", requireAuth, requireRole(["Admin", "Super Admin"]), async (req: any, res) => {
+  try {
+    const { requestId, action, tempPassword } = req.body;
+    if (!requestId || !action || !["approve", "reject"].includes(action)) {
+      return res.status(400).json({ success: false, error: "Valid requestId and action ('approve' | 'reject') are required." });
+    }
+
+    const db = await getDatabase();
+    const requests = await db.query<any>(
+      "SELECT * FROM password_reset_requests WHERE id = ? AND workspace_id = ?",
+      [requestId, req.workspaceId]
+    );
+
+    if (requests.length === 0) {
+      return res.status(404).json({ success: false, error: "Password reset request not found." });
+    }
+
+    const resetReq = requests[0];
+    const now = new Date().toISOString();
+    const reviewer = req.user.name || "Administrator";
+
+    if (action === "approve") {
+      const assignedTempPass = (tempPassword && tempPassword.trim()) || "soxit123";
+      const newSalt = generateSalt();
+      const newHash = hashPassword(assignedTempPass, newSalt);
+
+      // Reset user credentials in users table and set must_change_password = 1 for a 1-time setup!
+      await db.execute(
+        "UPDATE users SET password_hash = ?, salt = ?, must_change_password = 1 WHERE id = ? AND workspace_id = ?",
+        [newHash, newSalt, resetReq.user_id, req.workspaceId]
+      );
+
+      // Update request status to Approved
+      await db.execute(
+        "UPDATE password_reset_requests SET status = 'Approved', temp_password = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?",
+        [assignedTempPass, reviewer, now, requestId]
+      );
+
+      // Audit log
+      const logId = `log-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+      await db.execute(
+        `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [logId, req.workspaceId, req.user.id, req.user.name, req.user.role, "Admin Reset Password Approved", "AuthSecurity", resetReq.user_email, `Admin ${reviewer} approved password reset for ${resetReq.user_name} (${resetReq.user_email}). Temporary password: "${assignedTempPass}" (one-time setup required).`, now]
+      ).catch(() => {});
+
+      return res.json({
+        success: true,
+        message: `Password reset approved for ${resetReq.user_name}. Temporary password set to: "${assignedTempPass}" (requires one-time password setup on next login).`,
+        tempPassword: assignedTempPass
+      });
+    } else {
+      // Reject
+      await db.execute(
+        "UPDATE password_reset_requests SET status = 'Rejected', reviewed_by = ?, reviewed_at = ? WHERE id = ?",
+        [reviewer, now, requestId]
+      );
+
+      // Audit log
+      const logId = `log-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+      await db.execute(
+        `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [logId, req.workspaceId, req.user.id, req.user.name, req.user.role, "Admin Reset Password Rejected", "AuthSecurity", resetReq.user_email, `Admin ${reviewer} rejected password reset request for ${resetReq.user_name}.`, now]
+      ).catch(() => {});
+
+      return res.json({
+        success: true,
+        message: `Password reset request for ${resetReq.user_name} has been rejected.`
+      });
+    }
+  } catch (err: any) {
+    console.error("Resolve reset request error:", err);
+    return res.status(500).json({ success: false, error: "Failed to resolve password reset request." });
+  }
+});
+
+app.get("/api/auth/check-reset-status", async (req, res) => {
+  try {
+    const email = req.query.email as string;
+    if (!email) return res.status(400).json({ success: false, error: "Email is required." });
+    const db = await getDatabase();
+    const normalizedInput = email.trim().toLowerCase();
+    const reqs = await db.query<any>(
+      `SELECT r.id, r.status, r.temp_password as "tempPassword", r.created_at as "createdAt", r.reviewed_at as "reviewedAt", r.reviewed_by as "reviewedBy", u.must_change_password as "mustChangePassword"
+       FROM password_reset_requests r
+       JOIN users u ON r.user_id = u.id
+       WHERE LOWER(r.user_email) = ? OR LOWER(u.id) = ?
+       ORDER BY r.created_at DESC LIMIT 1`,
+      [normalizedInput, normalizedInput]
+    );
+    if (reqs.length === 0) {
+      return res.json({ success: true, hasRequest: false });
+    }
+    return res.json({ success: true, hasRequest: true, request: reqs[0] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: "Failed to check reset status." });
   }
 });
 
@@ -1557,7 +1754,7 @@ app.put("/api/settings/rbac", requireAuth, requireRole(["Admin"]), async (req: a
   }
 });
 
-app.get("/api/settings/audit-logs", requireAuth, async (req: any, res) => {
+app.get("/api/settings/audit-logs", requireAuth, requireRole(["Admin"]), async (req: any, res) => {
   try {
     const db = await getDatabase();
     const { userId, action, limit = 500 } = req.query;
@@ -2192,9 +2389,22 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Worqester Unified Platform running on http://0.0.0.0:${PORT}`);
-  });
+  function listenOnPort(port: number, attempts = 0): void {
+    const server = app.listen(port, "0.0.0.0", () => {
+      console.log(`Worqester Unified Platform running on http://localhost:${port}`);
+    });
+
+    server.on("error", (err: any) => {
+      if (err.code === "EADDRINUSE" && attempts < 10) {
+        console.warn(`[Bootstrap] Port ${port} is in use, attempting port ${port + 1}...`);
+        listenOnPort(port + 1, attempts + 1);
+      } else {
+        console.error("[Bootstrap] Server startup error:", err);
+      }
+    });
+  }
+
+  listenOnPort(PORT);
 }
 
 startServer();

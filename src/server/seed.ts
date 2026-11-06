@@ -254,8 +254,8 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
       );
     } else {
       await db.execute(
-        "UPDATE users SET role = ?, department = ?, job_title = ?, status = ?, must_change_password = ? WHERE id = ?",
-        [u.role, u.department, u.job_title, status, mustChange, u.id]
+        "UPDATE users SET role = ?, department = ?, job_title = ?, status = ? WHERE id = ?",
+        [u.role, u.department, u.job_title, status, u.id]
       );
     }
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import { KpiCard } from "../components/common/KpiCard";
 import { StatusBadge } from "../components/common/StatusBadge";
@@ -98,9 +98,34 @@ export const DashboardView: React.FC = () => {
     currentUser.email?.toLowerCase() === "jocker" ||
     currentUser.name.toLowerCase().includes("jocker");
 
+  const userRoleClean = (currentUser.role || "").toLowerCase().trim();
+  const isAdminOrAbove =
+    isJocker ||
+    userRoleClean === "admin" ||
+    userRoleClean === "super admin" ||
+    userRoleClean === "superadmin" ||
+    currentUser.role === "Admin" ||
+    currentUser.role === "Super Admin";
+
+  const isEmployee = currentUser.role === "Employee";
+
   // Command Center Navigation Tabs
   const [commandTab, setCommandTab] = useState<"cockpit" | "audit" | "broadcasts" | "projects" | "sales" | "team">("cockpit");
-  const [employeeMode, setEmployeeMode] = useState<"personal" | "command">(isJocker ? "command" : "command");
+  const [employeeMode, setEmployeeMode] = useState<"personal" | "command">(
+    isEmployee && !isJocker ? "personal" : "command"
+  );
+
+  useEffect(() => {
+    if (isEmployee && !isJocker) {
+      setEmployeeMode("personal");
+    }
+  }, [currentUser?.id, currentUser?.role, isEmployee, isJocker]);
+
+  useEffect(() => {
+    if (!isAdminOrAbove && commandTab === "audit") {
+      setCommandTab("cockpit");
+    }
+  }, [isAdminOrAbove, commandTab]);
 
   // Quick Broadcast Announcement Modal State
   const [isQuickPostOpen, setIsQuickPostOpen] = useState(false);
@@ -119,8 +144,6 @@ export const DashboardView: React.FC = () => {
   const [startDate, setStartDate] = useState("2020-01-01");
   const [endDate, setEndDate] = useState("2030-12-31");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-
-  const isEmployee = currentUser.role === "Employee";
 
   const handleQuickPostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,16 +329,18 @@ export const DashboardView: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-start lg:items-end gap-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setEmployeeMode("command")}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <Zap size={14} className="text-amber-300" />
-                <span>Switch to Command Center (See Everything)</span>
-              </button>
-            </div>
+            {isAdminOrAbove && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEmployeeMode("command")}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <Zap size={14} className="text-amber-300" />
+                  <span>Switch to Executive Command Center</span>
+                </button>
+              </div>
+            )}
 
             {/* Time Filter Presets */}
             <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
@@ -769,33 +794,6 @@ export const DashboardView: React.FC = () => {
                 </button>
               </div>
             </div>
-
-            {/* Recent Team Updates */}
-            <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Activity size={15} className="text-indigo-600 dark:text-indigo-400" />
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-                    Recent Operations Feed
-                  </h4>
-                </div>
-                <span className="text-[10px] bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-mono font-semibold border border-emerald-200 dark:border-emerald-800">
-                  Live
-                </span>
-              </div>
-
-              <div className="space-y-3 max-h-64 overflow-y-auto pr-1 text-xs">
-                {(activities || []).slice(0, 4).map((act) => (
-                  <div key={act.id || Math.random()} className="pb-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{act.title || "Untitled Activity"}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{act.timestamp || ""}</span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5">{act.description || ""}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
@@ -822,7 +820,7 @@ export const DashboardView: React.FC = () => {
     new Set([
       ...availableUsers.map((u) => u.name),
       ...employees.map((e) => e.fullName || `${e.firstName} ${e.lastName}`).filter(Boolean),
-      ...auditLogs.map((l) => l.userName).filter(Boolean),
+      ...(isAdminOrAbove ? auditLogs.map((l) => l.userName).filter(Boolean) : []),
     ])
   ).sort();
 
@@ -889,7 +887,7 @@ export const DashboardView: React.FC = () => {
                 )}
               </h1>
               <p className="text-xs text-slate-400 mt-1">
-                Single Pane of Glass Telemetry for <strong className="text-slate-200">{settings?.companyName || "Worqester Technologies"}</strong> • Real-time visibility across {projects.length} workstreams, {deals.length} deals, {employees.length} personnel, and {auditLogs.length} audit transactions.
+                Single Pane of Glass Telemetry for <strong className="text-slate-200">{settings?.companyName || "Worqester Technologies"}</strong> • Real-time visibility across {projects.length} workstreams, {deals.length} deals, {employees.length} personnel{isAdminOrAbove ? `, and ${auditLogs.length} audit transactions` : ""}.
               </p>
             </div>
           </div>
@@ -935,15 +933,17 @@ export const DashboardView: React.FC = () => {
                 <span>Broadcast Post</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setCommandTab("audit")}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
-                title="View live employee logins, clicks, and logout logs"
-              >
-                <Shield size={14} className="text-blue-400" />
-                <span>Employee Logs</span>
-              </button>
+              {isAdminOrAbove && (
+                <button
+                  type="button"
+                  onClick={() => setCommandTab("audit")}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                  title="View live employee logins, clicks, and logout logs"
+                >
+                  <Shield size={14} className="text-blue-400" />
+                  <span>Employee Logs</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -981,7 +981,9 @@ export const DashboardView: React.FC = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto pt-5 border-t border-slate-800/80 scrollbar-none">
           {[
             { id: "cockpit", label: "🛰️ Unified Cockpit", count: null },
-            { id: "audit", label: "👥 Live Employee Logs & Audit Feed", count: auditLogs.length },
+            ...(isAdminOrAbove
+              ? [{ id: "audit", label: "👥 Live Employee Logs & Audit Feed", count: auditLogs.length }]
+              : []),
             { id: "broadcasts", label: "📢 Workspace Directives & Posts", count: notes.length },
             { id: "projects", label: "🚀 Projects Radar", count: projects.length },
             { id: "sales", label: "💼 Commercial Pipeline", count: deals.length },
@@ -1283,7 +1285,7 @@ export const DashboardView: React.FC = () => {
                       No broadcast directives posted yet. Click "Post" to broadcast across the organization.
                     </div>
                   ) : (
-                    notes.slice(0, 3).map((n) => (
+                    notes.slice(0, isAdminOrAbove ? 3 : 5).map((n) => (
                       <div
                         key={n.id}
                         className={`p-3.5 rounded-xl border text-xs space-y-2 transition-all ${
@@ -1326,96 +1328,99 @@ export const DashboardView: React.FC = () => {
                 </button>
               </div>
 
-              {/* Live Employee Security & Activity Stream */}
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Shield size={16} className="text-blue-500" />
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Live Employee Activity Stream</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Logins, UI clicks, navigations & logouts</p>
+              {/* Live Employee Security & Activity Stream - Restricted to Admin and above */}
+              {isAdminOrAbove && (
+                <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Shield size={16} className="text-blue-500" />
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">Live Employee Activity Stream</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Logins, UI clicks, navigations & logouts</p>
+                      </div>
                     </div>
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
+                      LIVE
+                    </span>
                   </div>
-                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
-                    LIVE
-                  </span>
-                </div>
 
-                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-                  {auditLogs.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-slate-400">
-                      No employee audit events recorded yet.
-                    </div>
-                  ) : (
-                    auditLogs.slice(0, 6).map((log) => {
-                      const act = log.action.toLowerCase();
-                      const isLogin = act.includes("login");
-                      const isLogout = act.includes("logout") || act.includes("exit");
-                      const isClick = act.includes("click");
-                      const isNav = act.includes("navigation") || act.includes("view");
-                      const isClock = act.includes("clock");
+                  <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                    {auditLogs.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400">
+                        No employee audit events recorded yet.
+                      </div>
+                    ) : (
+                      auditLogs.slice(0, 6).map((log) => {
+                        const act = log.action.toLowerCase();
+                        const isLogin = act.includes("login");
+                        const isLogout = act.includes("logout") || act.includes("exit");
+                        const isClick = act.includes("click");
+                        const isNav = act.includes("navigation") || act.includes("view");
+                        const isClock = act.includes("clock");
 
-                      let badgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
-                      let Icon = Activity;
-                      if (isLogin) {
-                        badgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
-                        Icon = LogIn;
-                      } else if (isLogout) {
-                        badgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/30";
-                        Icon = LogOut;
-                      } else if (isClick) {
-                        badgeColor = "bg-purple-500/10 text-purple-400 border-purple-500/30";
-                        Icon = MousePointer;
-                      } else if (isNav) {
-                        badgeColor = "bg-sky-500/10 text-sky-400 border-sky-500/30";
-                        Icon = Eye;
-                      } else if (isClock) {
-                        badgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/30";
-                        Icon = Clock;
-                      }
+                        let badgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                        let Icon = Activity;
+                        if (isLogin) {
+                          badgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+                          Icon = LogIn;
+                        } else if (isLogout) {
+                          badgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/30";
+                          Icon = LogOut;
+                        } else if (isClick) {
+                          badgeColor = "bg-purple-500/10 text-purple-400 border-purple-500/30";
+                          Icon = MousePointer;
+                        } else if (isNav) {
+                          badgeColor = "bg-sky-500/10 text-sky-400 border-sky-500/30";
+                          Icon = Eye;
+                        } else if (isClock) {
+                          badgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/30";
+                          Icon = Clock;
+                        }
 
-                      return (
-                        <div
-                          key={log.id}
-                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 flex items-start gap-2.5 text-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                        >
-                          <div className={`p-1.5 rounded-lg border ${badgeColor} shrink-0 mt-0.5`}>
-                            <Icon size={12} />
-                          </div>
-                          <div className="min-w-0 flex-1 space-y-0.5">
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-bold text-slate-900 dark:text-white truncate">{log.userName}</span>
-                              <span className="text-[10px] font-mono text-slate-400 shrink-0">{log.timestamp ? log.timestamp.split("T")[1]?.slice(0, 8) || log.timestamp : ""}</span>
+                        return (
+                          <div
+                            key={log.id}
+                            className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 flex items-start gap-2.5 text-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                          >
+                            <div className={`p-1.5 rounded-lg border ${badgeColor} shrink-0 mt-0.5`}>
+                              <Icon size={12} />
                             </div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border ${badgeColor}`}>
-                                {log.action}
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-mono">[{log.entityName}]</span>
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-bold text-slate-900 dark:text-white truncate">{log.userName}</span>
+                                <span className="text-[10px] font-mono text-slate-400 shrink-0">{log.timestamp ? log.timestamp.split("T")[1]?.slice(0, 8) || log.timestamp : ""}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border ${badgeColor}`}>
+                                  {log.action}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono">[{log.entityName}]</span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight mt-0.5">{log.details}</p>
                             </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight mt-0.5">{log.details}</p>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                        );
+                      })
+                    )}
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setCommandTab("audit")}
-                  className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold text-center cursor-pointer transition-colors"
-                >
-                  Open Full Employee Audit Monitor
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setCommandTab("audit")}
+                    className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold text-center cursor-pointer transition-colors"
+                  >
+                    Open Full Employee Audit Monitor
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* 4. TAB CONTENT: LIVE EMPLOYEE LOGS & AUDIT MONITOR */}
+      {/* 4. TAB CONTENT: LIVE EMPLOYEE LOGS & AUDIT MONITOR - Restricted to Admin and above */}
       {commandTab === "audit" && (
+        isAdminOrAbove ? (
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-5 text-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
             <div>
@@ -1543,6 +1548,24 @@ export const DashboardView: React.FC = () => {
             )}
           </div>
         </div>
+        ) : (
+          <div className="p-12 text-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-3">
+            <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
+              <Shield size={24} />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">Access Restricted</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+              The Live Employee Activity &amp; Security Feed is restricted to Administrator privileges and above.
+            </p>
+            <button
+              type="button"
+              onClick={() => setCommandTab("cockpit")}
+              className="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+            >
+              Return to Cockpit
+            </button>
+          </div>
+        )
       )}
 
       {/* 5. TAB CONTENT: WORKSPACE BROADCASTS & DIRECTIVES */}

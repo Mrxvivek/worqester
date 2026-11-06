@@ -17,6 +17,7 @@ import {
   NoteItem,
   DocumentItem,
   AttendanceRecord,
+  PasswordResetRequest,
 } from "../types";
 
 export interface ApiResponse<T = any> {
@@ -426,3 +427,34 @@ export const HealthApi = {
     return res;
   },
 };
+
+export const AuthApi = {
+  requestPasswordReset: async (email: string, reason?: string) => {
+    return apiRequest<{ success: boolean; message: string; alreadyPending?: boolean; requestId?: string }>(
+      "/api/auth/request-reset",
+      {
+        method: "POST",
+        body: JSON.stringify({ email, reason }),
+      }
+    );
+  },
+  getPasswordResetRequests: async (): Promise<PasswordResetRequest[]> => {
+    const res = await apiRequest<{ success: boolean; requests: PasswordResetRequest[] }>("/api/auth/reset-requests");
+    return res && res.success && res.requests ? res.requests : [];
+  },
+  resolvePasswordResetRequest: async (requestId: string, action: "approve" | "reject", tempPassword?: string) => {
+    return apiRequest<{ success: boolean; message: string; tempPassword?: string }>(
+      "/api/auth/resolve-reset-request",
+      {
+        method: "POST",
+        body: JSON.stringify({ requestId, action, tempPassword }),
+      }
+    );
+  },
+  checkResetStatus: async (email: string) => {
+    return apiRequest<{ success: boolean; hasRequest: boolean; request?: any }>(
+      `/api/auth/check-reset-status?email=${encodeURIComponent(email)}`
+    );
+  },
+};
+

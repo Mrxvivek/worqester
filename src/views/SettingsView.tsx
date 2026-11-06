@@ -24,10 +24,11 @@ import {
   Eye,
   Activity,
   Filter,
+  KeyRound,
 } from "lucide-react";
 import { InviteUserModal } from "../components/modals/EditModals";
-import { SettingsApi } from "../services/api";
-import { AuditLogItem } from "../types";
+import { SettingsApi, AuthApi } from "../services/api";
+import { AuditLogItem, PasswordResetRequest } from "../types";
 
 export const SettingsView: React.FC = () => {
   const {
@@ -69,6 +70,20 @@ export const SettingsView: React.FC = () => {
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const activeSubView = currentSubView || "general";
 
+  const isJocker =
+    currentUser.id === "jocker" ||
+    currentUser.email?.toLowerCase() === "jocker" ||
+    currentUser.name.toLowerCase().includes("jocker");
+
+  const userRoleClean = (currentUser.role || "").toLowerCase().trim();
+  const isAdminOrAbove =
+    isJocker ||
+    userRoleClean === "admin" ||
+    userRoleClean === "super admin" ||
+    userRoleClean === "superadmin" ||
+    currentUser.role === "Admin" ||
+    currentUser.role === "Super Admin";
+
   const [companyName, setCompanyName] = useState(settings?.companyName || "Worqester Technologies");
   const [tagline, setTagline] = useState(settings?.tagline || "");
   const [currency, setCurrency] = useState(settings?.currency || "INR");
@@ -79,6 +94,44 @@ export const SettingsView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importCategory, setImportCategory] = useState<string>("auto");
   const [importStatus, setImportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Password Reset Requests (From Employees)
+  const [resetRequests, setResetRequests] = useState<PasswordResetRequest[]>([]);
+  const [resolvingResetId, setResolvingResetId] = useState<string | null>(null);
+  const [resetActionNotice, setResetActionNotice] = useState<string | null>(null);
+
+  const fetchResetRequests = async () => {
+    try {
+      const res = await AuthApi.getPasswordResetRequests();
+      setResetRequests(res);
+    } catch (e) {
+      console.warn("Could not fetch reset requests:", e);
+    }
+  };
+
+  const handleResolveReset = async (id: string, action: "approve" | "reject") => {
+    setResolvingResetId(id);
+    try {
+      const res = await AuthApi.resolvePasswordResetRequest(id, action, "soxit123");
+      if (res && res.success) {
+        setResetActionNotice(res.message);
+        setTimeout(() => setResetActionNotice(null), 5000);
+        await fetchResetRequests();
+      } else {
+        alert(res?.error || "Failed to resolve reset request");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to resolve reset request");
+    } finally {
+      setResolvingResetId(null);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeSubView === "users") {
+      fetchResetRequests();
+    }
+  }, [activeSubView]);
 
   // System Audit Trail & Employee Journey State
   const [auditUserFilter, setAuditUserFilter] = useState<string>("all");
@@ -486,7 +539,7 @@ export const SettingsView: React.FC = () => {
           { id: "users", label: "Users & Invitations", icon: Users },
           { id: "modules", label: "Active Modules", icon: Layers },
           { id: "rbac", label: "RBAC Security Matrix", icon: Shield },
-          { id: "audit", label: "Audit Trail Logs", icon: History },
+          ...(isAdminOrAbove ? [{ id: "audit", label: "Audit Trail Logs", icon: History }] : []),
           { id: "data", label: "Data & Persistence", icon: Database },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -612,6 +665,108 @@ export const SettingsView: React.FC = () => {
               <Plus size={14} />
               <span>Invite Team Member</span>
             </button>
+          </div>
+
+          {/* Password Reset Requests Queue */}
+          <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <KeyRound size={14} className="text-amber-400" />
+                <span>Password Reset Requests ({resetRequests.length})</span>
+              </h4>
+              <button
+                type="button"
+                onClick={fetchResetRequests}
+                className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <RefreshCw size={11} />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            {resetActionNotice && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                <Check size={14} className="text-emerald-400" />
+                <span>{resetActionNotice}</span>
+              </div>
+            )}
+
+            {resetRequests.length === 0 ? (
+              <p className="text-xs text-slate-500 py-3 text-center">
+                No password reset requests pending. When an employee requests a reset from the login portal, it will appear here.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-semibold">
+                      <th className="pb-3">User</th>
+                      <th className="pb-3">Email</th>
+                      <th className="pb-3">Reason</th>
+                      <th className="pb-3">Requested At</th>
+                      <th className="pb-3">Status</th>
+                      <th className="pb-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {resetRequests.map((req) => (
+                      <tr key={req.id} className="hover:bg-slate-800/30">
+                        <td className="py-3 font-semibold text-white">{req.userName}</td>
+                        <td className="py-3 font-mono text-slate-400 text-[11px]">{req.userEmail}</td>
+                        <td className="py-3 text-slate-300 italic text-[11px]">
+                          {req.reason || "Reset requested"}
+                        </td>
+                        <td className="py-3 text-slate-400 text-[11px]">
+                          {new Date(req.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                        </td>
+                        <td className="py-3">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                              req.status === "Pending"
+                                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                : req.status === "Approved"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                            }`}
+                          >
+                            {req.status}
+                          </span>
+                        </td>
+                        <td className="py-3 text-right">
+                          {req.status === "Pending" ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                disabled={resolvingResetId === req.id}
+                                onClick={() => handleResolveReset(req.id, "approve")}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold cursor-pointer disabled:opacity-50 transition-colors"
+                                title="Approve: Sets temporary password to 'soxit123' and prompts password setup on next login"
+                              >
+                                Approve (soxit123)
+                              </button>
+                              <button
+                                type="button"
+                                disabled={resolvingResetId === req.id}
+                                onClick={() => handleResolveReset(req.id, "reject")}
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-900 hover:text-white text-slate-400 text-[10px] font-semibold cursor-pointer disabled:opacity-50 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : req.status === "Approved" ? (
+                            <span className="text-[10px] text-emerald-400 font-mono">
+                              Temp: {req.tempPassword || "soxit123"}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500">Dismissed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Active Users Table */}
@@ -820,6 +975,7 @@ export const SettingsView: React.FC = () => {
 
       {/* VIEW: AUDIT TRAIL LOGS */}
       {activeSubView === "audit" && (
+        isAdminOrAbove ? (
         <div className="space-y-5">
           {/* Top Summary Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
@@ -1024,6 +1180,24 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
         </div>
+        ) : (
+          <div className="p-12 text-center rounded-2xl bg-slate-900/90 border border-slate-800/80 space-y-3">
+            <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
+              <Shield size={24} />
+            </div>
+            <h3 className="text-base font-bold text-white">Access Restricted</h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              System Security &amp; Employee Activity Audit logs are restricted to Administrator privileges and above.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigateTo("settings", "general")}
+              className="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+            >
+              Return to Organization Profile
+            </button>
+          </div>
+        )
       )}
 
       {/* VIEW: DATA & PERSISTENCE */}

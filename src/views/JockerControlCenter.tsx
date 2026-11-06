@@ -37,6 +37,8 @@ import {
   Phone
 } from "lucide-react";
 import { formatCurrency } from "../utils/formatters";
+import { PasswordResetRequest } from "../types";
+import { AuthApi } from "../services/api";
 
 interface JockerControlCenterProps {
   onToggleClassic: () => void;
@@ -112,6 +114,8 @@ export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onTogg
     dbType: "SQLite Local (Active)"
   });
   const [isRefreshingStats, setIsRefreshingStats] = useState(false);
+  const [passwordResetRequests, setPasswordResetRequests] = useState<PasswordResetRequest[]>([]);
+  const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
 
   // Fetch telemetry from backend
   const fetchTelemetry = async () => {
@@ -134,9 +138,40 @@ export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onTogg
     }
   };
 
+  const fetchResetRequests = async () => {
+    try {
+      const reqs = await AuthApi.getPasswordResetRequests();
+      setPasswordResetRequests(reqs);
+    } catch (err) {
+      console.warn("Could not fetch password reset requests:", err);
+    }
+  };
+
+  const handleResolveResetRequest = async (requestId: string, action: "approve" | "reject", tempPassword?: string) => {
+    setResolvingRequestId(requestId);
+    try {
+      const res = await AuthApi.resolvePasswordResetRequest(requestId, action, tempPassword || "soxit123");
+      if (res.success) {
+        setBroadcastNotification(res.message);
+        setTimeout(() => setBroadcastNotification(""), 6000);
+        await fetchResetRequests();
+      } else {
+        alert(res.error || "Failed to resolve reset request");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to resolve reset request");
+    } finally {
+      setResolvingRequestId(null);
+    }
+  };
+
   useEffect(() => {
     fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 30000);
+    fetchResetRequests();
+    const interval = setInterval(() => {
+      fetchTelemetry();
+      fetchResetRequests();
+    }, 20000);
     return () => clearInterval(interval);
   }, []);
 
@@ -151,6 +186,7 @@ export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onTogg
   const pipelineValue = useMemo(() => deals.reduce((acc, d) => acc + (d.amount || 0), 0), [deals]);
   const pendingLeaves = useMemo(() => leaves.filter((l) => l.status === "Pending"), [leaves]);
   const pendingExpenses = useMemo(() => expenses.filter((e) => e.status === "Pending"), [expenses]);
+  const pendingResetRequests = useMemo(() => passwordResetRequests.filter((r) => r.status === "Pending"), [passwordResetRequests]);
 
   const soxitAdmins = useMemo(() => {
     return availableUsers.filter(
@@ -557,7 +593,7 @@ export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onTogg
               { id: "surveillance", label: "👁️ Live Clickstream & Audit", count: auditLogs.length },
               { id: "directives", label: "📢 Directives Dispatch", count: notes.length },
               { id: "tasks", label: "🚀 Master Deliverables Grid", count: tasks.length },
-              { id: "approvals", label: "💼 Approvals & Pipeline", count: pendingLeaves.length + pendingExpenses.length },
+              { id: "approvals", label: "💼 Approvals & Pipeline", count: pendingLeaves.length + pendingExpenses.length + pendingResetRequests.length },
               { id: "diagnostics", label: "🛡️ System Diagnostics", count: null },
             ].map((tab) => (
               <button
@@ -1211,17 +1247,110 @@ export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onTogg
         {/* WORKSTATION 5: APPROVALS & COMMERCIAL PIPELINE */}
         {activeTab === "approvals" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Pending Approvals (Leaves & Expenses) */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Award size={18} className="text-amber-400" />
-                  <span>Pending Employee Approvals</span>
-                </h3>
-                <span className="text-xs font-mono text-amber-400">
-                  {pendingLeaves.length + pendingExpenses.length} Requests Pending
-                </span>
+            <div className="space-y-6">
+              {/* Emergency Account Access: Password Reset Requests */}
+              <div className="space-y-3 p-5 rounded-2xl bg-slate-900/90 border border-amber-500/30 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                      <KeyRound size={15} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Password Reset Requests</h3>
+                      <p className="text-[10px] text-slate-400">Employee credential resets awaiting Supreme / Admin clearance</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                    {pendingResetRequests.length} Pending
+                  </span>
+                </div>
+
+                {passwordResetRequests.length === 0 ? (
+                  <div className="p-5 rounded-xl bg-slate-950/40 border border-slate-800/80 text-center text-slate-500 text-xs">
+                    No password reset requests pending. All user credentials active.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                    {passwordResetRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs text-white">{req.userName}</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono">
+                                {req.userRole}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                  req.status === "Pending"
+                                    ? "bg-amber-500/20 text-amber-300"
+                                    : req.status === "Approved"
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : "bg-rose-500/20 text-rose-300"
+                                }`}
+                              >
+                                {req.status}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">{req.userEmail}</div>
+                          </div>
+
+                          {req.status === "Pending" && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                disabled={resolvingRequestId === req.id}
+                                onClick={() => handleResolveResetRequest(req.id, "approve", "soxit123")}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] cursor-pointer shadow-sm disabled:opacity-50 transition-colors"
+                                title="Approve reset: assigns temporary password 'soxit123' and prompts one-time setup on next login"
+                              >
+                                Approve (soxit123)
+                              </button>
+                              <button
+                                type="button"
+                                disabled={resolvingRequestId === req.id}
+                                onClick={() => handleResolveResetRequest(req.id, "reject")}
+                                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-900 hover:text-white text-slate-400 font-semibold text-[11px] cursor-pointer disabled:opacity-50 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/60 flex items-start justify-between gap-2">
+                          <span className="italic">"{req.reason || "Password reset requested from login portal"}"</span>
+                          <span className="text-[10px] text-slate-500 shrink-0 font-mono">
+                            {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        {req.status === "Approved" && (
+                          <div className="text-[10px] text-emerald-400 font-medium flex items-center justify-between">
+                            <span>✅ Approved by {req.reviewedBy || "Admin"}</span>
+                            <span>Temp pass: <strong className="font-mono text-white">{req.tempPassword || "soxit123"}</strong> (one-time setup required)</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* Pending Approvals (Leaves & Expenses) */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Award size={18} className="text-amber-400" />
+                    <span>Pending Employee Approvals</span>
+                  </h3>
+                  <span className="text-xs font-mono text-amber-400">
+                    {pendingLeaves.length + pendingExpenses.length} Requests Pending
+                  </span>
+                </div>
 
               {pendingLeaves.length === 0 && pendingExpenses.length === 0 ? (
                 <div className="p-8 rounded-2xl bg-slate-900/50 border border-slate-800 text-center text-slate-500 text-xs">
@@ -1307,6 +1436,7 @@ export const JockerControlCenter: React.FC<JockerControlCenterProps> = ({ onTogg
                   ))}
                 </div>
               )}
+            </div>
             </div>
 
             {/* Commercial Deals Pipeline */}

@@ -40,11 +40,6 @@ export const ForceChangePasswordModal: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    if (!currentPassword) {
-      setError("Please provide your current/temporary password.");
-      return;
-    }
-
     if (!hasMinLength) {
       setError("Your new password must be at least 8 characters long.");
       return;
@@ -55,14 +50,14 @@ export const ForceChangePasswordModal: React.FC = () => {
       return;
     }
 
-    if (newPassword === currentPassword) {
+    if (currentPassword && newPassword === currentPassword) {
       setError("New password must be different from your temporary password.");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await changePassword(newPassword, currentPassword);
+      const res = await changePassword(newPassword, currentPassword || undefined);
       if (!res.success) {
         setError(res.error || "Failed to update password. Please check your credentials.");
       }
@@ -84,11 +79,11 @@ export const ForceChangePasswordModal: React.FC = () => {
             </div>
             <div>
               <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider uppercase bg-amber-400/20 text-amber-200 border border-amber-300/30 mb-1">
-                Security Policy Required
+                One-Time First Login Setup
               </span>
-              <h2 className="text-lg font-bold leading-tight">Update Initial Password</h2>
+              <h2 className="text-lg font-bold leading-tight">Create Your Permanent Password</h2>
               <p className="text-xs text-blue-100/90 mt-0.5">
-                First-time employee onboarding requirement
+                Set once now — you won't be prompted on future logins
               </p>
             </div>
           </div>
@@ -97,7 +92,7 @@ export const ForceChangePasswordModal: React.FC = () => {
         {/* Form Body */}
         <div className="p-6 sm:p-7 space-y-5">
           <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
-            Welcome <strong className="text-slate-900 dark:text-white">{currentUser?.name}</strong>. As an organization {currentUser?.role || "member"}, security policy requires updating your initial password before accessing the workspace.
+            Welcome <strong className="text-slate-900 dark:text-white">{currentUser?.name}</strong>. Please set your permanent account password to finish onboarding. Future logins will go directly to your dashboard without prompting.
           </div>
 
           {error && (
@@ -110,9 +105,14 @@ export const ForceChangePasswordModal: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Current Password */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Current / Temporary Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Temporary Password
+                </label>
+                <span className="text-[10px] text-slate-400">
+                  Optional (Verified on login)
+                </span>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   <KeyRound size={16} />
@@ -121,8 +121,7 @@ export const ForceChangePasswordModal: React.FC = () => {
                   type={showCurrent ? "text" : "password"}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter temporary password (email, name, or soxit123)"
-                  required
+                  placeholder="Enter temporary password if prompted"
                   className="w-full pl-9 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 />
                 <button

@@ -446,3 +446,20 @@ export interface UserInvitation {
   invitedBy?: string;
   sentDate?: string;
 }
+
+export interface PasswordResetRequest {
+  id: string;
+  workspaceId: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  department?: string;
+  reason?: string;
+  status: "Pending" | "Approved" | "Rejected";
+  tempPassword?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
+
