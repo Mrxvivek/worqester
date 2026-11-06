@@ -16,3 +16,8 @@ backups/
 *.sqlite-journal
 *.sqlite-wal
 
+hostinger_access_backup/
+*.key
+*.pem
+*.pub
+*.zip
