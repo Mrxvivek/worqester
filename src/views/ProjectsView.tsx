@@ -31,6 +31,7 @@ import { EditProjectModal, AddMilestoneModal, EditMilestoneModal } from "../comp
 
 export const ProjectsView: React.FC = () => {
   const {
+    currentUser,
     projects,
     updateProject,
     deleteItem,
@@ -72,10 +73,10 @@ export const ProjectsView: React.FC = () => {
       description: `Task created for ${projectName}`,
       projectId,
       projectName,
-      assigneeId: "usr-01",
-      assigneeName: "Alex Vance",
-      reporterId: "usr-01",
-      reporterName: "Alex Vance",
+      assigneeId: currentUser.id,
+      assigneeName: currentUser.name,
+      reporterId: currentUser.id,
+      reporterName: currentUser.name,
       priority: "High",
       status: "To Do",
       labels: ["Project-Milestone"],

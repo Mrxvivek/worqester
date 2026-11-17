@@ -24,31 +24,31 @@ export interface DemoUser {
 
 export const fallbackDemoUsers: DemoUser[] = [
   {
-    id: "usr-01",
-    name: "Alex Vance",
-    email: "alex.vance@worqester.internal",
+    id: "usr-admin-suman",
+    name: "Suman",
+    email: "suman@soxit.org",
     role: "Admin",
-    department: "Executive Management",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    defaultPassword: "worqester123",
+    department: "Administration",
+    avatar: "https://ui-avatars.com/api/?name=Suman&background=2563eb&color=fff&bold=true",
+    defaultPassword: "",
   },
   {
-    id: "usr-04",
-    name: "Elena Rostova",
-    email: "elena.rostova@worqester.internal",
-    role: "Project Manager",
-    department: "Engineering",
-    avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
-    defaultPassword: "worqester123",
+    id: "usr-admin-raja",
+    name: "Raja",
+    email: "raja@soxit.org",
+    role: "Admin",
+    department: "Operations & Administration",
+    avatar: "https://ui-avatars.com/api/?name=Raja&background=2563eb&color=fff&bold=true",
+    defaultPassword: "",
   },
   {
-    id: "usr-05",
-    name: "Vikram Patel",
-    email: "vikram.patel@worqester.internal",
+    id: "usr-soxit-01",
+    name: "Yenduri Hima Sai Sri",
+    email: "Yhima17@soxit.org",
     role: "Employee",
-    department: "Engineering",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
-    defaultPassword: "worqester123",
+    department: "QA | DM",
+    avatar: "https://ui-avatars.com/api/?name=Yenduri+Hima+Sai+Sri&background=2563eb&color=fff&bold=true",
+    defaultPassword: "",
   },
 ];
 
@@ -159,26 +159,16 @@ export class AuthService {
     } catch (err: any) {
       // Local fallback for offline/preview resilience
       const normalizedEmail = email.trim().toLowerCase();
-      const matchUser = initialUsers.find(
-        (u) => u.email.toLowerCase() === normalizedEmail || u.id.toLowerCase() === normalizedEmail
-      );
-      if (matchUser) {
-        if (matchUser.status === "Red-Listed" || matchUser.status === "Disabled") {
-          return {
-            success: false,
-            error: "ACCESS DENIED: Account is Red-Listed & Disabled by Supreme Commander Jocker."
-          };
-        }
-        if (
-          password.trim().toLowerCase() === normalizedEmail ||
-          (matchUser.id === "jocker" && password.trim() === "viki") ||
+      const matchUser = initialUsers.find((u) => u.email.toLowerCase() === normalizedEmail);
+      if (
+        matchUser &&
+        (password.trim().toLowerCase() === normalizedEmail ||
           password === "worqester123" ||
-          password === "password123"
-        ) {
-          const token = `local-token-${Date.now()}`;
-          this.setSession(token, matchUser);
-          return { success: true, token, user: matchUser };
-        }
+          password === "password123")
+      ) {
+        const token = `local-token-${Date.now()}`;
+        this.setSession(token, matchUser);
+        return { success: true, token, user: matchUser };
       }
       return { success: false, error: "Invalid email or password." };
     }
@@ -224,9 +214,12 @@ export class AuthService {
     }
   }
 
-  static async changePassword(newPassword: string, currentPassword?: string): Promise<{ success: boolean; error?: string; user?: User }> {
+  static async changePassword(
+    newPassword: string,
+    currentPassword?: string
+  ): Promise<{ success: boolean; user?: User; error?: string; requiresPermission?: boolean }> {
     const token = this.getToken();
-    if (!token) return { success: false, error: "Not authenticated." };
+    if (!token) return { success: false, error: "Not authenticated" };
 
     try {
       const res = await fetch("/api/auth/change-password", {
@@ -237,18 +230,148 @@ export class AuthService {
         },
         body: JSON.stringify({ newPassword, currentPassword }),
       });
+
       const data = await res.json();
-      if (res.ok && data.success) {
-        const currentUser = this.getStoredUser();
-        if (currentUser) {
-          const updatedUser: User = { ...currentUser, mustChangePassword: false };
-          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser));
-        }
+      if (res.ok && data.success && data.user) {
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data.user));
         return { success: true, user: data.user };
       }
-      return { success: false, error: data.error || "Failed to update password." };
+      return {
+        success: false,
+        error: data.error || "Failed to update password.",
+        requiresPermission: data.requiresPermission,
+      };
     } catch (err: any) {
-      return { success: false, error: err.message || "Network error updating password." };
+      return { success: false, error: err.message || "Network error while updating password." };
+    }
+  }
+
+  static async requestPasswordChange(): Promise<{ success: boolean; error?: string; message?: string }> {
+    const token = this.getToken();
+    if (!token) return { success: false, error: "Not authenticated" };
+
+    try {
+      const res = await fetch("/api/auth/request-password-change", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const user = this.getStoredUser();
+        if (user) {
+          user.passwordChangeStatus = "requested";
+          user.passwordChangeRequestedAt = data.requestedAt || new Date().toISOString();
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+        }
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || "Failed to request password change permission." };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error." };
+    }
+  }
+
+  static async cancelPasswordChangeRequest(): Promise<{ success: boolean; error?: string }> {
+    const token = this.getToken();
+    if (!token) return { success: false, error: "Not authenticated" };
+
+    try {
+      const res = await fetch("/api/auth/cancel-password-change-request", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const user = this.getStoredUser();
+        if (user) {
+          user.passwordChangeStatus = "none";
+          user.passwordChangeRequestedAt = undefined;
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+        }
+        return { success: true };
+      }
+      return { success: false, error: data.error || "Failed to cancel request." };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error." };
+    }
+  }
+
+  static async managePasswordPermission(
+    userId: string,
+    action: "approve" | "revoke" | "reset_first_login"
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const token = this.getToken();
+    if (!token) return { success: false, error: "Not authenticated" };
+
+    try {
+      const res = await fetch("/api/auth/admin-password-permission", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId, action }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || "Failed to manage password permission." };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error." };
+    }
+  }
+
+  static async adminResetPassword(
+    userId: string,
+    newPassword: string,
+    mustChangePassword = false
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const token = this.getToken();
+    if (!token) return { success: false, error: "Not authenticated" };
+
+    try {
+      const res = await fetch("/api/auth/admin-reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId, newPassword, mustChangePassword }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || "Failed to reset user password." };
+    } catch (err: any) {
+      return { success: false, error: err.message || "Network error." };
+    }
+  }
+
+  static async fetchUsers(): Promise<User[]> {
+    const token = this.getToken();
+    if (!token) return [];
+
+    try {
+      const res = await fetch("/api/auth/users", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.users)) {
+          return data.users;
+        }
+      }
+      return [];
+    } catch {
+      return [];
     }
   }
 }

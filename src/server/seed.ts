@@ -29,102 +29,42 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
     avatar: string;
     password?: string;
     eId?: string;
-    status?: string;
   }> = [
     {
       id: "jocker",
-      name: "Jocker",
+      name: "Jocker (Supreme Commander)",
       email: "jocker",
       role: "Super Admin",
       department: "Supreme Command HQ",
-      job_title: "Supreme Commander & Owner",
-      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-      password: "viki",
-      status: "Active",
+      job_title: "Supreme Commander",
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
     },
-    // Soxit Enterprise Administrators (Active, must change password on first login)
     {
       id: "usr-admin-suman",
       name: "Suman",
       email: "suman@soxit.org",
-      password: "suman@soxit.org",
       role: "Admin",
       department: "Administration",
-      job_title: "System Administrator",
-      avatar: "https://ui-avatars.com/api/?name=Suman&background=d97706&color=fff&bold=true",
-      status: "Active",
+      job_title: "Administrator",
+      avatar: "https://ui-avatars.com/api/?name=Suman&background=2563eb&color=fff&bold=true",
     },
     {
       id: "usr-admin-raja",
       name: "Raja",
       email: "raja@soxit.org",
-      password: "raja@soxit.org",
       role: "Admin",
       department: "Operations & Administration",
       job_title: "Operations Administrator",
-      avatar: "https://ui-avatars.com/api/?name=Raja&background=d97706&color=fff&bold=true",
-      status: "Active",
+      avatar: "https://ui-avatars.com/api/?name=Raja&background=2563eb&color=fff&bold=true",
     },
     {
       id: "usr-admin-chriss",
       name: "Chriss",
       email: "chriss@soxit.org",
-      password: "chriss@soxit.org",
       role: "Admin",
       department: "Executive Administration",
-      job_title: "Platform Administrator",
-      avatar: "https://ui-avatars.com/api/?name=Chriss&background=d97706&color=fff&bold=true",
-      status: "Active",
-    },
-    // Former Non-Employee Roles: Retained in database but Red-Listed & Disabled
-    {
-      id: "usr-01",
-      name: "Alex Vance",
-      email: "alex.vance@worqester.internal",
-      role: "Super Admin",
-      department: "Executive",
-      job_title: "Chief Executive Officer",
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-      status: "Red-Listed",
-    },
-    {
-      id: "usr-02",
-      name: "Priya Sharma",
-      email: "priya.sharma@worqester.internal",
-      role: "Executive",
-      department: "Operations",
-      job_title: "Chief Operating Officer",
-      avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
-      status: "Red-Listed",
-    },
-    {
-      id: "usr-03",
-      name: "Marcus Reed",
-      email: "marcus.reed@worqester.internal",
-      role: "Project Manager",
-      department: "Engineering",
-      job_title: "VP of Engineering",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-      status: "Red-Listed",
-    },
-    {
-      id: "usr-04",
-      name: "Elena Rostova",
-      email: "elena.rostova@worqester.internal",
-      role: "HR Manager",
-      department: "People & Talent",
-      job_title: "Head of People & Culture",
-      avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
-      status: "Red-Listed",
-    },
-    {
-      id: "usr-05",
-      name: "Vikram Patel",
-      email: "vikram.patel@worqester.internal",
-      role: "Employee",
-      department: "Engineering",
-      job_title: "Staff Cloud Architect",
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+      job_title: "Executive Administrator",
+      avatar: "https://ui-avatars.com/api/?name=Chriss&background=2563eb&color=fff&bold=true",
     },
     {
       id: "usr-soxit-01",
@@ -239,23 +179,15 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
   ];
 
   for (const u of users) {
-    const salt = generateSalt();
-    const rawPassword = u.password || defaultPassword;
-    const hash = hashPassword(rawPassword, salt);
-    const mustChange = (u.role === "Employee" || u.role === "Admin") && u.id !== "jocker" ? 1 : 0;
-    const status = u.status || "Active";
-
     const existingUsers = await db.query<{ id: string }>("SELECT id FROM users WHERE id = ?", [u.id]);
     if (existingUsers.length === 0) {
+      const salt = generateSalt();
+      const rawPassword = u.password || defaultPassword;
+      const hash = hashPassword(rawPassword, salt);
       await db.execute(
-        `INSERT INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [u.id, workspaceId, u.name, u.email, u.avatar, u.role, u.department, u.job_title, salt, hash, mustChange, status, now]
-      );
-    } else {
-      await db.execute(
-        "UPDATE users SET role = ?, department = ?, job_title = ?, status = ? WHERE id = ?",
-        [u.role, u.department, u.job_title, status, u.id]
+        `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, password_change_status, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'none', 'Active', ?)`,
+        [u.id, workspaceId, u.name, u.email, u.avatar, u.role, u.department, u.job_title, salt, hash, now]
       );
     }
 
@@ -326,6 +258,6 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
   if (!isAutoSeed) {
     console.log(`\n[Seed] SUCCESS: Clean workspace initialized in ${duration}s (no demo business records).`);
-    console.log(`[Seed] Default Admin Login: alex.vance@worqester.internal / ${defaultPassword}`);
+    console.log(`[Seed] Default Admin Login: suman@soxit.org / first-time login (no password needed)`);
   }
 }

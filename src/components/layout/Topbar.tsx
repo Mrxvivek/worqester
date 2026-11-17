@@ -19,6 +19,7 @@ import {
   UserPlus,
   BookOpen,
   LogOut,
+  KeyRound,
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 
@@ -32,6 +33,7 @@ export const Topbar: React.FC = () => {
     setIsCommandPaletteOpen,
     setIsAiAssistantOpen,
     setIsAiAuditOpen,
+    setIsPasswordModalOpen,
     notifications,
     unreadNotificationsCount,
     markNotificationRead,
@@ -72,7 +74,7 @@ export const Topbar: React.FC = () => {
   };
 
   const viewLabels: Record<string, string> = {
-    dashboard: "Executive Command Center",
+    dashboard: "System Monitor",
     crm: "Sales & Client Directory",
     projects: "Active Workstreams",
     tasks: "Task Kanban & Deliverables",
@@ -80,14 +82,13 @@ export const Topbar: React.FC = () => {
     workload: "Capacity & Utilization",
     team: "Capacity & Utilization",
     documents: "Knowledge Repository",
-    notes: "Workspace Directives & Posts",
+    notes: "Executive Scratchpad",
     reports: "Compliance & Performance Reports",
     ai: "Intelligence & Automations",
     settings: "Organization & Access Control",
   };
 
   const isDark = settings?.theme === "dark";
-  const isJocker = currentUser.id === "jocker" || currentUser.name.toLowerCase().includes("jocker");
 
   return (
     <header
@@ -123,33 +124,13 @@ export const Topbar: React.FC = () => {
 
         <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">/</span>
 
-        <button
-          type="button"
-          onClick={() => navigateTo("dashboard")}
-          className={`hidden sm:inline font-semibold text-xs px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-            currentView === "dashboard"
-              ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-              : isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"
-          }`}
-        >
-          Command Center
-        </button>
-
-        {currentView !== "dashboard" && (
-          <>
-            <span className="text-slate-300 dark:text-slate-700 hidden md:inline">/</span>
-            <span className={`font-semibold tracking-tight truncate hidden md:inline text-xs ${isDark ? "text-white" : "text-slate-900"}`}>
-              {viewLabels[currentView] || "Module"}
-            </span>
-          </>
-        )}
-
-        {isJocker && (
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-300 text-[10px] font-bold tracking-tight">
-            <Sparkles size={11} className="text-amber-500" />
-            <span>SUPREME OVERRIDE ACTIVE</span>
-          </div>
-        )}
+        <span className={`hidden sm:inline ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+          Global Workspace
+        </span>
+        <span className="text-slate-300 dark:text-slate-700 hidden md:inline">/</span>
+        <span className={`font-semibold tracking-tight truncate hidden md:inline ${isDark ? "text-white" : "text-slate-900"}`}>
+          {viewLabels[currentView] || "System Monitor"}
+        </span>
       </div>
 
       {/* Right Controls */}
@@ -440,7 +421,27 @@ export const Topbar: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-2">
+              <div className="p-2 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    setIsPasswordModalOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer font-medium"
+                >
+                  <div className="flex items-center gap-2">
+                    <KeyRound size={14} className="text-blue-500" />
+                    <span>Password & Security</span>
+                  </div>
+                  {currentUser.passwordChangeStatus === "requested" && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  )}
+                  {currentUser.passwordChangeStatus === "approved" && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  )}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {

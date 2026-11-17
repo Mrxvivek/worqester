@@ -26,7 +26,11 @@ export interface User {
   jobTitle: string;
   organizationId: string;
   mustChangePassword?: boolean;
-  status?: "Active" | "Red-Listed" | "Disabled";
+  status?: string;
+  passwordChangeStatus?: "none" | "requested" | "approved";
+  passwordChangeRequestedAt?: string;
+  passwordChangeApprovedAt?: string;
+  passwordChangeApprovedBy?: string;
 }
 
 export type HealthStatus = "Healthy" | "Watch" | "At Risk" | "Critical";
@@ -359,9 +363,6 @@ export interface NoteItem {
   tags: string[];
   pinned: boolean;
   linkedEntity?: string;
-  authorId?: string;
-  authorName?: string;
-  targetAudience?: "All" | "Employees" | "Executives" | "Project Managers" | string;
   updatedAt: string;
 }
 
@@ -446,20 +447,3 @@ export interface UserInvitation {
   invitedBy?: string;
   sentDate?: string;
 }
-
-export interface PasswordResetRequest {
-  id: string;
-  workspaceId: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  userRole: string;
-  department?: string;
-  reason?: string;
-  status: "Pending" | "Approved" | "Rejected";
-  tempPassword?: string;
-  reviewedBy?: string;
-  reviewedAt?: string;
-  createdAt: string;
-}
-

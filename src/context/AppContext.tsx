@@ -28,8 +28,7 @@ import {
 } from "../types";
 import { StorageService } from "../services/storage";
 import { AuthService } from "../services/auth";
-import { CrmApi, ProjectsApi, TasksApi, HrmApi, SettingsApi, NotesApi, DocumentsApi, AttendanceApi } from "../services/api";
-import { ActivityTracker } from "../services/activityTracker";
+import { CrmApi, ProjectsApi, TasksApi, HrmApi, SettingsApi } from "../services/api";
 
 export interface Notification {
   id: string;
@@ -45,7 +44,6 @@ interface AppContextType {
   currentUser: User;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  changePassword: (newPassword: string, currentPassword?: string) => Promise<{ success: boolean; error?: string }>;
   signup: (data: {
     name: string;
     email: string;
@@ -82,6 +80,13 @@ interface AppContextType {
   setIsAiAssistantOpen: (open: boolean) => void;
   isAiAuditOpen: boolean;
   setIsAiAuditOpen: (open: boolean) => void;
+  isPasswordModalOpen: boolean;
+  setIsPasswordModalOpen: (open: boolean) => void;
+  changePassword: (newPassword: string, currentPassword?: string) => Promise<{ success: boolean; error?: string; requiresPermission?: boolean }>;
+  requestPasswordChange: () => Promise<{ success: boolean; error?: string; message?: string }>;
+  cancelPasswordChangeRequest: () => Promise<{ success: boolean; error?: string }>;
+  managePasswordPermission: (userId: string, action: "approve" | "revoke" | "reset_first_login") => Promise<{ success: boolean; message?: string; error?: string }>;
+  adminResetPassword: (userId: string, newPassword: string, mustChangePassword?: boolean) => Promise<{ success: boolean; message?: string; error?: string }>;
   
   // Search
   globalSearchQuery: string;
@@ -197,18 +202,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
   const [isAiAuditOpen, setIsAiAuditOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
 
   const syncFromBackend = async () => {
     try {
-      const isUserAdminOrAbove =
-        currentUser.id === "jocker" ||
-        currentUser.email?.toLowerCase() === "jocker" ||
-        currentUser.role === "Admin" ||
-        currentUser.role === "Super Admin";
-
       const [
         dealsRes,
         leadsRes,
@@ -222,9 +222,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invitationsRes,
         rbacRes,
         auditRes,
-        notesRes,
-        docsRes,
-        attRes,
       ] = await Promise.allSettled([
         CrmApi.getDeals(),
         CrmApi.getLeads(),
@@ -237,10 +234,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         HrmApi.getCandidates(),
         SettingsApi.getInvitations(),
         SettingsApi.getRbac(),
-        isUserAdminOrAbove ? SettingsApi.getAuditLogs() : Promise.resolve([]),
-        NotesApi.getNotes(),
-        DocumentsApi.getDocuments(),
-        AttendanceApi.getAttendance(),
+        SettingsApi.getAuditLogs(),
       ]);
 
       if (dealsRes.status === "fulfilled" && Array.isArray(dealsRes.value)) {
@@ -287,34 +281,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setRbacPermissions(rbacRes.value);
         StorageService.saveRbacPermissions(rbacRes.value);
       }
-      if (!isUserAdminOrAbove) {
-        setAuditLogs([]);
-        StorageService.saveAuditLogs([]);
-      } else if (auditRes.status === "fulfilled" && Array.isArray(auditRes.value)) {
+      if (auditRes.status === "fulfilled" && Array.isArray(auditRes.value)) {
         setAuditLogs(auditRes.value);
         StorageService.saveAuditLogs(auditRes.value);
       }
-      if (notesRes.status === "fulfilled" && Array.isArray(notesRes.value)) {
-        setNotes(notesRes.value);
-        StorageService.saveNotes(notesRes.value);
-      }
-      if (docsRes.status === "fulfilled" && Array.isArray(docsRes.value)) {
-        setDocuments(docsRes.value);
-        StorageService.saveDocuments(docsRes.value);
-      }
-      if (attRes.status === "fulfilled" && Array.isArray(attRes.value)) {
-        setAttendance(attRes.value);
-        StorageService.saveAttendance(attRes.value);
+      if (AuthService.isAuthenticated()) {
+        const usersList = await AuthService.fetchUsers();
+        if (usersList && usersList.length > 0) {
+          setAvailableUsers(usersList);
+          StorageService.saveUsers(usersList);
+        }
       }
     } catch (e) {
       console.warn("syncFromBackend warning:", e);
     }
   };
 
-  // Check auth session, init activity tracking, and sync backend data
+  // Check auth session and sync backend data on startup
   useEffect(() => {
-    ActivityTracker.init();
-
     const verifyAndSync = async () => {
       if (AuthService.isAuthenticated()) {
         const verified = await AuthService.verifySession();
@@ -326,15 +310,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await syncFromBackend();
     };
     verifyAndSync();
-
-    // Auto-sync polling every 12 seconds so posts & updates from other users reflect in real time
-    const interval = setInterval(() => {
-      if (AuthService.isAuthenticated()) {
-        syncFromBackend();
-      }
-    }, 12000);
-
-    return () => clearInterval(interval);
   }, []);
 
   // Entities state
@@ -392,15 +367,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user) {
       setCurrentUser(user);
       StorageService.setCurrentUserId(userId);
-      const isSwitchAdmin =
-        user.id === "jocker" ||
-        user.email?.toLowerCase() === "jocker" ||
-        user.role === "Admin" ||
-        user.role === "Super Admin";
-      if (!isSwitchAdmin) {
-        setAuditLogs([]);
-        StorageService.saveAuditLogs([]);
-      }
       StorageService.addAuditLog({
         userName: user.name,
         userRole: user.role,
@@ -463,7 +429,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedEntityId(entityId);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
-    ActivityTracker.trackNavigation(view, subView);
   };
 
   const login = async (email: string, password: string) => {
@@ -486,15 +451,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         entityName: res.user.email,
         details: `User signed in successfully.`,
       });
-      const isUserAdminOrAbove =
-        res.user.id === "jocker" ||
-        res.user.email?.toLowerCase() === "jocker" ||
-        res.user.role === "Admin" ||
-        res.user.role === "Super Admin";
-      if (!isUserAdminOrAbove) {
-        setAuditLogs([]);
-        StorageService.saveAuditLogs([]);
-      }
       refreshData();
       await syncFromBackend();
       return { success: true };
@@ -504,17 +460,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const changePassword = async (newPassword: string, currentPassword?: string) => {
     const res = await AuthService.changePassword(newPassword, currentPassword);
-    if (res.success) {
-      if (currentUser) {
-        const updated: User = { ...currentUser, mustChangePassword: false };
-        setCurrentUser(updated);
-        const updatedList = availableUsers.map((u) => (u.id === updated.id ? updated : u));
-        setAvailableUsers(updatedList);
-        StorageService.saveUsers(updatedList);
-      }
-      return { success: true };
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+      setAvailableUsers((prev) =>
+        prev.map((u) => (u.id === res.user!.id ? { ...u, ...res.user } : u))
+      );
+      await syncFromBackend();
     }
-    return { success: false, error: res.error || "Failed to update password." };
+    return res;
+  };
+
+  const requestPasswordChange = async () => {
+    const res = await AuthService.requestPasswordChange();
+    if (res.success) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        passwordChangeStatus: "requested",
+        passwordChangeRequestedAt: new Date().toISOString(),
+      }));
+      await syncFromBackend();
+    }
+    return res;
+  };
+
+  const cancelPasswordChangeRequest = async () => {
+    const res = await AuthService.cancelPasswordChangeRequest();
+    if (res.success) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        passwordChangeStatus: "none",
+        passwordChangeRequestedAt: undefined,
+      }));
+      await syncFromBackend();
+    }
+    return res;
+  };
+
+  const managePasswordPermission = async (
+    userId: string,
+    action: "approve" | "revoke" | "reset_first_login"
+  ) => {
+    const res = await AuthService.managePasswordPermission(userId, action);
+    if (res.success) {
+      await syncFromBackend();
+    }
+    return res;
+  };
+
+  const adminResetPassword = async (
+    userId: string,
+    newPassword: string,
+    mustChangePassword = false
+  ) => {
+    const res = await AuthService.adminResetPassword(userId, newPassword, mustChangePassword);
+    if (res.success) {
+      await syncFromBackend();
+    }
+    return res;
   };
 
   const signup = async (data: {
@@ -1173,25 +1175,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newNote: NoteItem = {
       ...data,
       id: `note-${Date.now()}`,
-      authorName: currentUser.name,
       updatedAt: new Date().toISOString().split("T")[0],
     };
     const list = [newNote, ...notes];
     StorageService.saveNotes(list);
     setNotes(list);
-    NotesApi.createNote(newNote).then((created) => {
-      if (created) {
-        setNotes((prev) => prev.map((n) => (n.id === newNote.id ? created : n)));
-      }
-    }).catch((e) => console.error("API createNote error:", e));
-    StorageService.addAuditLog({
-      userName: currentUser.name,
-      userRole: currentUser.role,
-      action: "Posted Note",
-      entityType: "Notes",
-      entityName: newNote.title,
-      details: `Published note "${newNote.title}" to workspace.`,
-    });
     refreshData();
   };
 
@@ -1201,15 +1189,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     StorageService.saveNotes(list);
     setNotes(list);
-    NotesApi.updateNote(id, data).catch((e) => console.error("API updateNote error:", e));
-    StorageService.addAuditLog({
-      userName: currentUser.name,
-      userRole: currentUser.role,
-      action: "Updated Note",
-      entityType: "Notes",
-      entityName: id,
-      details: `Updated note content/pin status.`,
-    });
     refreshData();
   };
 
@@ -1218,24 +1197,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...doc,
       id: `doc-${Date.now()}`,
       uploadedAt: new Date().toISOString().split("T")[0],
-      uploadedBy: currentUser.name,
     };
     const list = [newDoc, ...documents];
     StorageService.saveDocuments(list);
     setDocuments(list);
-    DocumentsApi.createDocument(newDoc).then((created) => {
-      if (created) {
-        setDocuments((prev) => prev.map((d) => (d.id === newDoc.id ? created : d)));
-      }
-    }).catch((e) => console.error("API createDocument error:", e));
-    StorageService.addAuditLog({
-      userName: currentUser.name,
-      userRole: currentUser.role,
-      action: "Uploaded Document",
-      entityType: "Documents",
-      entityName: newDoc.title || newDoc.name || "Document",
-      details: `Uploaded new document to company workspace.`,
-    });
     refreshData();
   };
 
@@ -1284,12 +1249,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const filtered = documents.filter((d) => d.id !== id);
       StorageService.saveDocuments(filtered);
       setDocuments(filtered);
-      DocumentsApi.deleteDocument(id).catch((e) => console.error("API deleteDocument error:", e));
     } else if (type === "note") {
       const filtered = notes.filter((n) => n.id !== id);
       StorageService.saveNotes(filtered);
       setNotes(filtered);
-      NotesApi.deleteNote(id).catch((e) => console.error("API deleteNote error:", e));
     } else if (type === "asset") {
       deleteAsset(id);
     } else if (type === "candidate") {
@@ -1307,47 +1270,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       action: "Deleted Item",
       entityType: type,
       entityName: id,
-      details: `Deleted ${type} record ID: ${id}.`,
+      details: `Soft deleted ${type} record ID: ${id}.`,
     });
     refreshData();
   };
 
+
   const checkInCurrentUser = () => {
-    const today = new Date().toISOString().split("T")[0];
-    const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const record: AttendanceRecord = {
       id: `att-${Date.now()}`,
       employeeId: currentUser.id,
       employeeName: currentUser.name,
-      date: today,
-      checkIn: nowTime,
+      date: new Date().toISOString().split("T")[0],
+      checkIn: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       totalHours: 0,
       status: "Present",
       workMode: "Office",
     };
-    const list = [record, ...attendance.filter((a) => !(a.employeeId === currentUser.id && a.date === today))];
+    const list = [record, ...attendance];
     StorageService.saveAttendance(list);
     setAttendance(list);
-    AttendanceApi.checkIn().catch((e) => console.error("API checkIn error:", e));
-    StorageService.addAuditLog({
-      userName: currentUser.name,
-      userRole: currentUser.role,
-      action: "Clocked In",
-      entityType: "Attendance",
-      entityName: today,
-      details: `${currentUser.name} clocked in at ${nowTime}.`,
-    });
-    refreshData();
   };
 
   const checkOutCurrentUser = () => {
-    const today = new Date().toISOString().split("T")[0];
-    const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const list = attendance.map((a) => {
-      if (a.employeeName === currentUser.name || a.employeeId === currentUser.id) {
+      if (a.employeeName === currentUser.name) {
         return {
           ...a,
-          checkOut: nowTime,
+          checkOut: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           totalHours: 8.5,
         };
       }
@@ -1355,16 +1305,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     StorageService.saveAttendance(list);
     setAttendance(list);
-    AttendanceApi.checkOut().catch((e) => console.error("API checkOut error:", e));
-    StorageService.addAuditLog({
-      userName: currentUser.name,
-      userRole: currentUser.role,
-      action: "Clocked Out",
-      entityType: "Attendance",
-      entityName: today,
-      details: `${currentUser.name} clocked out at ${nowTime}.`,
-    });
-    refreshData();
   };
 
   const resetDemoData = () => {
@@ -1421,7 +1361,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentUser,
         isAuthenticated,
         login,
-        changePassword,
         signup,
         logout,
         switchUser,
@@ -1447,6 +1386,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAiAssistantOpen,
         isAiAuditOpen,
         setIsAiAuditOpen,
+        isPasswordModalOpen,
+        setIsPasswordModalOpen,
+        changePassword,
+        requestPasswordChange,
+        cancelPasswordChangeRequest,
+        managePasswordPermission,
+        adminResetPassword,
         globalSearchQuery,
         setGlobalSearchQuery,
         notifications,

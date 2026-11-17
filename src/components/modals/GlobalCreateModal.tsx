@@ -252,7 +252,7 @@ export const GlobalCreateModal: React.FC = () => {
         endDate: new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0],
         days: Number(leaveDays) || 2,
         reason: leaveReason || "Personal rest and errands.",
-        approverName: "Elena Rostova",
+        approverName: "HR Administrator",
         status: "Pending",
       });
     } else if (activeType === "expense") {

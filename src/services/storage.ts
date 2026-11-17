@@ -328,71 +328,22 @@ export class StorageService {
     this.save(STORAGE_KEYS.ACTIVITIES, list);
   }
 
-  static isCurrentUserAdmin(): boolean {
-    try {
-      const currentUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-      const users = this.getUsers();
-      const user = users.find((u) => u.id === currentUserId);
-      if (!user) return false;
-      const r = (user.role || "").toLowerCase().trim();
-      return (
-        user.id === "jocker" ||
-        user.email?.toLowerCase() === "jocker" ||
-        r === "admin" ||
-        r === "super admin" ||
-        r === "superadmin" ||
-        user.role === "Admin" ||
-        user.role === "Super Admin"
-      );
-    } catch {
-      return false;
-    }
-  }
-
   static getAuditLogs(): AuditLogItem[] {
-    if (!this.isCurrentUserAdmin()) {
-      return [];
-    }
     return this.load(STORAGE_KEYS.AUDIT_LOGS, initialAuditLogs);
   }
 
   static addAuditLog(item: Omit<AuditLogItem, "id" | "timestamp">): void {
+    const list = this.getAuditLogs();
     const newLog: AuditLogItem = {
       ...item,
-      id: `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: `aud-${Date.now()}`,
       timestamp: new Date().toISOString().replace("T", " ").substring(0, 19),
     };
-
-    // Send to backend database asynchronously for persistent centralized audit trail
-    try {
-      const token = localStorage.getItem("worqester_auth_token_v1");
-      if (token) {
-        fetch("/api/settings/audit-logs", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(newLog),
-        }).catch(() => {});
-      }
-    } catch {}
-
-    // Only cache audit telemetry locally if current user has Admin privileges
-    if (this.isCurrentUserAdmin()) {
-      const list = this.load(STORAGE_KEYS.AUDIT_LOGS, initialAuditLogs);
-      list.unshift(newLog);
-      this.save(STORAGE_KEYS.AUDIT_LOGS, list.slice(0, 300));
-    }
+    list.unshift(newLog);
+    this.save(STORAGE_KEYS.AUDIT_LOGS, list.slice(0, 200));
   }
 
   static saveAuditLogs(items: AuditLogItem[]): void {
-    if (!this.isCurrentUserAdmin()) {
-      try {
-        localStorage.removeItem(STORAGE_KEYS.AUDIT_LOGS);
-      } catch {}
-      return;
-    }
     this.save(STORAGE_KEYS.AUDIT_LOGS, items);
   }
 

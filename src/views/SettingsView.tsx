@@ -16,19 +16,14 @@ import {
   Trash2,
   Mail,
   UserCheck,
-  Search,
-  RefreshCw,
-  LogIn,
-  LogOut,
-  MousePointer,
-  Eye,
-  Activity,
-  Filter,
   KeyRound,
+  ShieldAlert,
+  ShieldCheck,
+  Clock,
+  RotateCw,
+  CheckCircle2,
 } from "lucide-react";
 import { InviteUserModal } from "../components/modals/EditModals";
-import { SettingsApi, AuthApi } from "../services/api";
-import { AuditLogItem, PasswordResetRequest } from "../types";
 
 export const SettingsView: React.FC = () => {
   const {
@@ -40,6 +35,7 @@ export const SettingsView: React.FC = () => {
     resetToDemoData,
     currentUser,
     availableUsers,
+    managePasswordPermission,
     invitations,
     inviteUser,
     revokeInvitation,
@@ -68,21 +64,8 @@ export const SettingsView: React.FC = () => {
   } = useApp();
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [passwordActionFeedback, setPasswordActionFeedback] = useState<string | null>(null);
   const activeSubView = currentSubView || "general";
-
-  const isJocker =
-    currentUser.id === "jocker" ||
-    currentUser.email?.toLowerCase() === "jocker" ||
-    currentUser.name.toLowerCase().includes("jocker");
-
-  const userRoleClean = (currentUser.role || "").toLowerCase().trim();
-  const isAdminOrAbove =
-    isJocker ||
-    userRoleClean === "admin" ||
-    userRoleClean === "super admin" ||
-    userRoleClean === "superadmin" ||
-    currentUser.role === "Admin" ||
-    currentUser.role === "Super Admin";
 
   const [companyName, setCompanyName] = useState(settings?.companyName || "Worqester Technologies");
   const [tagline, setTagline] = useState(settings?.tagline || "");
@@ -94,126 +77,6 @@ export const SettingsView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importCategory, setImportCategory] = useState<string>("auto");
   const [importStatus, setImportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
-
-  // Password Reset Requests (From Employees)
-  const [resetRequests, setResetRequests] = useState<PasswordResetRequest[]>([]);
-  const [resolvingResetId, setResolvingResetId] = useState<string | null>(null);
-  const [resetActionNotice, setResetActionNotice] = useState<string | null>(null);
-
-  const fetchResetRequests = async () => {
-    try {
-      const res = await AuthApi.getPasswordResetRequests();
-      setResetRequests(res);
-    } catch (e) {
-      console.warn("Could not fetch reset requests:", e);
-    }
-  };
-
-  const handleResolveReset = async (id: string, action: "approve" | "reject") => {
-    setResolvingResetId(id);
-    try {
-      const res = await AuthApi.resolvePasswordResetRequest(id, action, "soxit123");
-      if (res && res.success) {
-        setResetActionNotice(res.message);
-        setTimeout(() => setResetActionNotice(null), 5000);
-        await fetchResetRequests();
-      } else {
-        alert(res?.error || "Failed to resolve reset request");
-      }
-    } catch (err: any) {
-      alert(err.message || "Failed to resolve reset request");
-    } finally {
-      setResolvingResetId(null);
-    }
-  };
-
-  React.useEffect(() => {
-    if (activeSubView === "users") {
-      fetchResetRequests();
-    }
-  }, [activeSubView]);
-
-  // System Audit Trail & Employee Journey State
-  const [auditUserFilter, setAuditUserFilter] = useState<string>("all");
-  const [auditActionFilter, setAuditActionFilter] = useState<string>("all");
-  const [auditSearchQuery, setAuditSearchQuery] = useState<string>("");
-  const [isRefreshingAudit, setIsRefreshingAudit] = useState(false);
-  const [liveLogs, setLiveLogs] = useState<AuditLogItem[] | null>(null);
-
-  const displayLogs = liveLogs || auditLogs;
-
-  const handleRefreshAudit = async () => {
-    setIsRefreshingAudit(true);
-    try {
-      const fetched = await SettingsApi.getAuditLogs(
-        auditUserFilter !== "all" ? auditUserFilter : undefined
-      );
-      setLiveLogs(fetched);
-    } catch (e) {
-      console.warn("Failed to refresh audit logs:", e);
-    } finally {
-      setIsRefreshingAudit(false);
-    }
-  };
-
-  const userOptions = Array.from(
-    new Set([
-      ...availableUsers.map((u) => u.name),
-      ...employees.map((e) => e.fullName || `${e.firstName} ${e.lastName}`).filter(Boolean),
-      ...displayLogs.map((l) => l.userName).filter(Boolean),
-    ])
-  ).sort();
-
-  const filteredAuditLogs = displayLogs.filter((log) => {
-    if (auditUserFilter !== "all") {
-      const matchesUser =
-        log.userName?.toLowerCase() === auditUserFilter.toLowerCase() ||
-        (log as any).userId === auditUserFilter;
-      if (!matchesUser) return false;
-    }
-
-    if (auditActionFilter !== "all") {
-      const act = log.action.toLowerCase();
-      if (auditActionFilter === "sessions") {
-        if (!act.includes("login") && !act.includes("logout") && !act.includes("session") && !act.includes("password")) {
-          return false;
-        }
-      } else if (auditActionFilter === "clicks") {
-        if (!act.includes("click") && !act.includes("navigation") && !act.includes("view")) {
-          return false;
-        }
-      } else if (auditActionFilter === "data") {
-        if (act.includes("login") || act.includes("logout") || act.includes("session") || act.includes("click") || act.includes("navigation")) {
-          return false;
-        }
-      }
-    }
-
-    if (auditSearchQuery.trim()) {
-      const q = auditSearchQuery.toLowerCase();
-      const match =
-        log.userName?.toLowerCase().includes(q) ||
-        log.action?.toLowerCase().includes(q) ||
-        log.entityType?.toLowerCase().includes(q) ||
-        log.entityName?.toLowerCase().includes(q) ||
-        log.details?.toLowerCase().includes(q);
-      if (!match) return false;
-    }
-
-    return true;
-  });
-
-  const sessionEventsCount = displayLogs.filter((l) => {
-    const a = l.action.toLowerCase();
-    return a.includes("login") || a.includes("logout") || a.includes("session");
-  }).length;
-
-  const clickEventsCount = displayLogs.filter((l) => {
-    const a = l.action.toLowerCase();
-    return a.includes("click") || a.includes("navigation");
-  }).length;
-
-  const dataEventsCount = Math.max(0, displayLogs.length - sessionEventsCount - clickEventsCount);
 
   const currentModules: Record<string, boolean> = {
     crm: true,
@@ -539,7 +402,7 @@ export const SettingsView: React.FC = () => {
           { id: "users", label: "Users & Invitations", icon: Users },
           { id: "modules", label: "Active Modules", icon: Layers },
           { id: "rbac", label: "RBAC Security Matrix", icon: Shield },
-          ...(isAdminOrAbove ? [{ id: "audit", label: "Audit Trail Logs", icon: History }] : []),
+          { id: "audit", label: "Audit Trail Logs", icon: History },
           { id: "data", label: "Data & Persistence", icon: Database },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -667,114 +530,123 @@ export const SettingsView: React.FC = () => {
             </button>
           </div>
 
-          {/* Password Reset Requests Queue */}
-          <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <KeyRound size={14} className="text-amber-400" />
-                <span>Password Reset Requests ({resetRequests.length})</span>
-              </h4>
+          {/* Password Action Feedback Banner */}
+          {passwordActionFeedback && (
+            <div className="p-3.5 rounded-xl bg-blue-900/40 border border-blue-800 text-blue-200 text-xs flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-blue-400 shrink-0" />
+                <span>{passwordActionFeedback}</span>
+              </div>
               <button
                 type="button"
-                onClick={fetchResetRequests}
-                className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+                onClick={() => setPasswordActionFeedback(null)}
+                className="text-slate-400 hover:text-white text-xs px-2 py-0.5"
               >
-                <RefreshCw size={11} />
-                <span>Refresh</span>
+                Dismiss
               </button>
             </div>
+          )}
 
-            {resetActionNotice && (
-              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-                <Check size={14} className="text-emerald-400" />
-                <span>{resetActionNotice}</span>
+          {/* Pending Employee Password Change Requests */}
+          {availableUsers.some((u) => u.passwordChangeStatus === "requested") && (
+            <div className="p-6 rounded-2xl bg-amber-950/40 border border-amber-800/80 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                  <Clock size={16} className="text-amber-400 animate-pulse" />
+                  <span>
+                    Pending Password Change Requests (
+                    {availableUsers.filter((u) => u.passwordChangeStatus === "requested").length}
+                    )
+                  </span>
+                </h4>
+                <span className="text-[11px] text-amber-400 font-medium">
+                  Administrator approval required for employee password changes
+                </span>
               </div>
-            )}
 
-            {resetRequests.length === 0 ? (
-              <p className="text-xs text-slate-500 py-3 text-center">
-                No password reset requests pending. When an employee requests a reset from the login portal, it will appear here.
-              </p>
-            ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-300">
                   <thead>
-                    <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                      <th className="pb-3">User</th>
-                      <th className="pb-3">Email</th>
-                      <th className="pb-3">Reason</th>
-                      <th className="pb-3">Requested At</th>
-                      <th className="pb-3">Status</th>
-                      <th className="pb-3 text-right">Action</th>
+                    <tr className="border-b border-amber-800/60 text-amber-200 font-semibold">
+                      <th className="pb-2.5">Employee</th>
+                      <th className="pb-2.5">Role / Dept</th>
+                      <th className="pb-2.5">Requested At</th>
+                      <th className="pb-2.5 text-right">Decision Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {resetRequests.map((req) => (
-                      <tr key={req.id} className="hover:bg-slate-800/30">
-                        <td className="py-3 font-semibold text-white">{req.userName}</td>
-                        <td className="py-3 font-mono text-slate-400 text-[11px]">{req.userEmail}</td>
-                        <td className="py-3 text-slate-300 italic text-[11px]">
-                          {req.reason || "Reset requested"}
-                        </td>
-                        <td className="py-3 text-slate-400 text-[11px]">
-                          {new Date(req.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                        </td>
-                        <td className="py-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                              req.status === "Pending"
-                                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                                : req.status === "Approved"
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                            }`}
-                          >
-                            {req.status}
-                          </span>
-                        </td>
-                        <td className="py-3 text-right">
-                          {req.status === "Pending" ? (
-                            <div className="flex items-center justify-end gap-1.5">
+                  <tbody className="divide-y divide-amber-900/40">
+                    {availableUsers
+                      .filter((u) => u.passwordChangeStatus === "requested")
+                      .map((u) => (
+                        <tr key={u.id} className="hover:bg-amber-900/20">
+                          <td className="py-3">
+                            <div className="font-semibold text-white">{u.name}</div>
+                            <div className="text-[11px] text-amber-300/80 font-mono">{u.email}</div>
+                          </td>
+                          <td className="py-3">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-bold">
+                              {u.role}
+                            </span>
+                            <span className="text-[11px] text-slate-400 ml-2">{u.department}</span>
+                          </td>
+                          <td className="py-3 text-[11px] text-amber-300/70 font-mono">
+                            {u.passwordChangeRequestedAt
+                              ? new Date(u.passwordChangeRequestedAt).toLocaleString()
+                              : "Just now"}
+                          </td>
+                          <td className="py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
                               <button
                                 type="button"
-                                disabled={resolvingResetId === req.id}
-                                onClick={() => handleResolveReset(req.id, "approve")}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold cursor-pointer disabled:opacity-50 transition-colors"
-                                title="Approve: Sets temporary password to 'soxit123' and prompts password setup on next login"
+                                onClick={async () => {
+                                  const res = await managePasswordPermission(u.id, "approve");
+                                  setPasswordActionFeedback(
+                                    res.success
+                                      ? `Approved password change permission for ${u.name}.`
+                                      : res.error || "Failed to approve request."
+                                  );
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
                               >
-                                Approve (soxit123)
+                                <ShieldCheck size={13} />
+                                <span>Approve Permission</span>
                               </button>
                               <button
                                 type="button"
-                                disabled={resolvingResetId === req.id}
-                                onClick={() => handleResolveReset(req.id, "reject")}
-                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-900 hover:text-white text-slate-400 text-[10px] font-semibold cursor-pointer disabled:opacity-50 transition-colors"
+                                onClick={async () => {
+                                  const res = await managePasswordPermission(u.id, "revoke");
+                                  setPasswordActionFeedback(
+                                    res.success
+                                      ? `Revoked password request for ${u.name}.`
+                                      : res.error || "Failed to deny request."
+                                  );
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer border border-slate-700"
                               >
-                                Reject
+                                Deny
                               </button>
                             </div>
-                          ) : req.status === "Approved" ? (
-                            <span className="text-[10px] text-emerald-400 font-mono">
-                              Temp: {req.tempPassword || "soxit123"}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-500">Dismissed</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Active Users Table */}
           <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 space-y-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <UserCheck size={14} className="text-emerald-400" />
-              <span>Active Workspace Members ({availableUsers.length})</span>
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <UserCheck size={14} className="text-emerald-400" />
+                <span>Active Workspace Members ({availableUsers.length})</span>
+              </h4>
+              <span className="text-[11px] text-slate-400">
+                First-time employee logins require no password; password updates require administrator authorization.
+              </span>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-300">
                 <thead>
@@ -782,36 +654,158 @@ export const SettingsView: React.FC = () => {
                     <th className="pb-3">User</th>
                     <th className="pb-3">Role</th>
                     <th className="pb-3">Department</th>
-                    <th className="pb-3">Status</th>
+                    <th className="pb-3">Password Status</th>
+                    <th className="pb-3 text-right">Access & Password Controls</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {availableUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-800/30">
-                      <td className="py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-blue-600/20 text-blue-400 font-bold flex items-center justify-center text-xs">
-                            {u.name.charAt(0)}
+                  {availableUsers.map((u) => {
+                    const isSuperOrAdmin =
+                      u.role === "Super Admin" || u.role === "Admin" || u.id === "jocker";
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-800/30">
+                        <td className="py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-blue-600/20 text-blue-400 font-bold flex items-center justify-center text-xs">
+                              {u.name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-white">{u.name}</div>
+                              <div className="text-[11px] text-slate-400">{u.email}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-semibold text-white">{u.name}</div>
-                            <div className="text-[11px] text-slate-400">{u.email}</div>
+                        </td>
+                        <td className="py-3">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-medium border border-slate-700">
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="py-3 text-slate-400">{u.department || "Enterprise Core"}</td>
+                        <td className="py-3">
+                          {u.mustChangePassword ? (
+                            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-semibold border border-blue-500/20 inline-flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+                              First Login (No Pass)
+                            </span>
+                          ) : u.passwordChangeStatus === "requested" ? (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-semibold border border-amber-500/20 inline-flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                              Permission Requested
+                            </span>
+                          ) : u.passwordChangeStatus === "approved" ? (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold border border-emerald-500/20 inline-flex items-center gap-1">
+                              <ShieldCheck size={11} />
+                              Permission Granted
+                            </span>
+                          ) : isSuperOrAdmin ? (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-medium border border-slate-700">
+                              Direct Change (Admin)
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-medium border border-slate-700">
+                              Locked (Admin Required)
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {u.passwordChangeStatus === "requested" ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const res = await managePasswordPermission(u.id, "approve");
+                                    setPasswordActionFeedback(
+                                      res.success
+                                        ? `Permission granted for ${u.name}.`
+                                        : res.error || "Failed to approve."
+                                    );
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition-colors cursor-pointer"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const res = await managePasswordPermission(u.id, "revoke");
+                                    setPasswordActionFeedback(
+                                      res.success
+                                        ? `Request denied for ${u.name}.`
+                                        : res.error || "Failed to deny."
+                                    );
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] transition-colors cursor-pointer border border-slate-700"
+                                >
+                                  Deny
+                                </button>
+                              </>
+                            ) : u.passwordChangeStatus === "approved" ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const res = await managePasswordPermission(u.id, "revoke");
+                                  setPasswordActionFeedback(
+                                    res.success
+                                      ? `Revoked permission for ${u.name}.`
+                                      : res.error || "Failed to revoke."
+                                  );
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 text-[11px] transition-colors cursor-pointer border border-slate-700"
+                              >
+                                Revoke Permission
+                              </button>
+                            ) : !isSuperOrAdmin ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const res = await managePasswordPermission(u.id, "approve");
+                                  setPasswordActionFeedback(
+                                    res.success
+                                      ? `Granted password change permission to ${u.name}.`
+                                      : res.error || "Failed to grant permission."
+                                  );
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-blue-900/60 hover:bg-blue-800 text-blue-300 border border-blue-700/60 text-[11px] font-semibold transition-colors cursor-pointer"
+                                title="Allow this employee to change their password once"
+                              >
+                                Grant Permission
+                              </button>
+                            ) : null}
+
+                            {/* Reset to First Login (Email + No pass) */}
+                            {!u.mustChangePassword && !isSuperOrAdmin && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (
+                                    window.confirm(
+                                      `Reset ${u.name}'s account to first-time login? They will be able to log in with just their email (${u.email}) and no password, and set a new password upon login.`
+                                    )
+                                  ) {
+                                    const res = await managePasswordPermission(
+                                      u.id,
+                                      "reset_first_login"
+                                    );
+                                    setPasswordActionFeedback(
+                                      res.success
+                                        ? `Reset ${u.name}'s account to first-time login (email only, no password).`
+                                        : res.error || "Failed to reset."
+                                    );
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 border border-purple-800/60 text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1"
+                                title="Reset account so employee can log in with email and no password"
+                              >
+                                <RotateCw size={11} />
+                                <span>Reset (No Pass)</span>
+                              </button>
+                            )}
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-3">
-                        <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-medium border border-slate-700">
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="py-3 text-slate-400">{u.department || "Enterprise Core"}</td>
-                      <td className="py-3">
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-semibold border border-emerald-500/20">
-                          Active
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -975,229 +969,43 @@ export const SettingsView: React.FC = () => {
 
       {/* VIEW: AUDIT TRAIL LOGS */}
       {activeSubView === "audit" && (
-        isAdminOrAbove ? (
-        <div className="space-y-5">
-          {/* Top Summary Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800/80">
-              <span className="text-[11px] font-medium text-slate-400">Total Tracked Events</span>
-              <p className="text-xl font-bold text-white mt-1">{displayLogs.length}</p>
-              <span className="text-[10px] text-slate-500 font-mono">Immutable audit stream</span>
-            </div>
-            <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-500/20">
-              <span className="text-[11px] font-medium text-emerald-400 flex items-center gap-1.5">
-                <LogIn size={12} /> Logins & Sessions
-              </span>
-              <p className="text-xl font-bold text-emerald-300 mt-1">{sessionEventsCount}</p>
-              <span className="text-[10px] text-emerald-500/80 font-mono">Auth lifecycle events</span>
-            </div>
-            <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/20">
-              <span className="text-[11px] font-medium text-purple-400 flex items-center gap-1.5">
-                <MousePointer size={12} /> Clicks & Navigations
-              </span>
-              <p className="text-xl font-bold text-purple-300 mt-1">{clickEventsCount}</p>
-              <span className="text-[10px] text-purple-500/80 font-mono">User UI interactions</span>
-            </div>
-            <div className="p-4 rounded-2xl bg-blue-950/20 border border-blue-500/20">
-              <span className="text-[11px] font-medium text-blue-400 flex items-center gap-1.5">
-                <Database size={12} /> Business Data Operations
-              </span>
-              <p className="text-xl font-bold text-blue-300 mt-1">{dataEventsCount}</p>
-              <span className="text-[10px] text-blue-500/80 font-mono">Posts, Tasks & CRM changes</span>
-            </div>
-          </div>
-
+        <div className="space-y-4">
           <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800/80 space-y-4 text-xs">
-            {/* Header and Refresh */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/70 pb-4">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Shield size={16} className="text-blue-400" />
-                  <span>System Security & Employee Activity Journey</span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Chronological trail tracking employee login time, UI clicks, view navigations, database updates, and workspace logout
+                <h3 className="text-sm font-bold text-white">System Security & Audit Trail</h3>
+                <p className="text-xs text-slate-400">
+                  Immutable log of all user CRUD operations, stage changes, and administrative actions
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleRefreshAudit}
-                  disabled={isRefreshingAudit}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-                  title="Refresh latest events from server"
-                >
-                  <RefreshCw size={13} className={isRefreshingAudit ? "animate-spin text-blue-400" : ""} />
-                  <span>{isRefreshingAudit ? "Refreshing..." : "Refresh Logs"}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <div>
-                <label className="block text-[10px] uppercase font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                  <Users size={11} /> Filter by Employee / User:
-                </label>
-                <select
-                  value={auditUserFilter}
-                  onChange={(e) => setAuditUserFilter(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
-                >
-                  <option value="all">All Employees & Accounts ({userOptions.length} users)</option>
-                  {userOptions.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] uppercase font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                  <Filter size={11} /> Event Category:
-                </label>
-                <select
-                  value={auditActionFilter}
-                  onChange={(e) => setAuditActionFilter(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
-                >
-                  <option value="all">All Event Categories</option>
-                  <option value="sessions">🔑 Logins, Logouts & Sessions</option>
-                  <option value="clicks">🖱️ User Clicks & UI Navigation</option>
-                  <option value="data">📝 Posts, Tasks & Business Operations</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] uppercase font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                  <Search size={11} /> Search Event Details:
-                </label>
-                <div className="relative">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="text"
-                    value={auditSearchQuery}
-                    onChange={(e) => setAuditSearchQuery(e.target.value)}
-                    placeholder="Search button name, view, action..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Results count */}
-            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
-              <span>
-                Showing <strong className="text-white">{filteredAuditLogs.length}</strong> of {displayLogs.length} logged events
-                {auditUserFilter !== "all" && (
-                  <span className="ml-1 text-blue-400 font-semibold">for {auditUserFilter}</span>
-                )}
+              <span className="font-mono text-xs text-slate-400">
+                {auditLogs.length} Total Events
               </span>
-              {auditUserFilter !== "all" || auditActionFilter !== "all" || auditSearchQuery ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuditUserFilter("all");
-                    setAuditActionFilter("all");
-                    setAuditSearchQuery("");
-                  }}
-                  className="text-blue-400 hover:text-blue-300 underline cursor-pointer text-[10px]"
-                >
-                  Clear filters
-                </button>
-              ) : null}
             </div>
 
-            {/* Log Stream Feed */}
-            <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
-              {filteredAuditLogs.length === 0 ? (
-                <div className="p-8 text-center rounded-xl bg-slate-950/40 border border-slate-800/60 text-slate-400">
-                  <History size={24} className="mx-auto mb-2 text-slate-600" />
-                  <p className="font-semibold text-slate-300">No audit events match current criteria</p>
-                  <p className="text-[11px] text-slate-500 mt-1">Adjust your user filter or event search query above</p>
-                </div>
-              ) : (
-                filteredAuditLogs.map((log) => {
-                  const act = log.action.toLowerCase();
-                  const isLogin = act.includes("login");
-                  const isLogout = act.includes("logout") || act.includes("exit");
-                  const isClick = act.includes("click");
-                  const isNav = act.includes("navigation") || act.includes("view");
-                  const isClock = act.includes("clock");
-
-                  let badgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
-                  let Icon = History;
-                  if (isLogin) {
-                    badgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
-                    Icon = LogIn;
-                  } else if (isLogout) {
-                    badgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/30";
-                    Icon = LogOut;
-                  } else if (isClick) {
-                    badgeColor = "bg-purple-500/10 text-purple-400 border-purple-500/30";
-                    Icon = MousePointer;
-                  } else if (isNav) {
-                    badgeColor = "bg-sky-500/10 text-sky-400 border-sky-500/30";
-                    Icon = Eye;
-                  } else if (isClock) {
-                    badgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/30";
-                    Icon = Activity;
-                  }
-
-                  return (
-                    <div
-                      key={log.id}
-                      className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-slate-700/80 transition-colors"
-                    >
-                      <div className="flex items-start sm:items-center gap-3">
-                        <div className={`p-2 rounded-lg border ${badgeColor} shrink-0`}>
-                          <Icon size={14} />
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-white font-bold tracking-tight text-xs">{log.userName}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-sans">
-                              {log.userRole}
-                            </span>
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${badgeColor}`}>
-                              {log.action}
-                            </span>
-                            <span className="text-slate-400 text-[11px] font-mono">[{log.entityType}: {log.entityName}]</span>
-                          </div>
-                          <p className="text-slate-300 text-xs font-sans leading-relaxed">{log.details}</p>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right sm:pl-3">
-                        <span className="text-[11px] font-mono text-slate-400 block whitespace-nowrap">
-                          {log.timestamp}
-                        </span>
-                      </div>
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+              {auditLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/60 flex items-center justify-between text-xs font-mono"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-400 font-bold">{log.userName}</span>
+                      <span className="text-slate-500 font-sans">({log.userRole})</span>
+                      <span className="text-emerald-400 font-bold uppercase text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10">
+                        {log.action}
+                      </span>
+                      <span className="text-slate-300">{log.entityType}</span>
                     </div>
-                  );
-                })
-              )}
+                    <p className="text-slate-400 text-[11px] font-sans">{log.details}</p>
+                  </div>
+                  <span className="text-[10px] text-slate-500">{log.timestamp}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-        ) : (
-          <div className="p-12 text-center rounded-2xl bg-slate-900/90 border border-slate-800/80 space-y-3">
-            <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
-              <Shield size={24} />
-            </div>
-            <h3 className="text-base font-bold text-white">Access Restricted</h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto">
-              System Security &amp; Employee Activity Audit logs are restricted to Administrator privileges and above.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigateTo("settings", "general")}
-              className="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
-            >
-              Return to Organization Profile
-            </button>
-          </div>
-        )
       )}
 
       {/* VIEW: DATA & PERSISTENCE */}

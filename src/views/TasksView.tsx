@@ -30,6 +30,7 @@ import { EditTaskModal } from "../components/modals/EditModals";
 
 export const TasksView: React.FC = () => {
   const {
+    currentUser,
     tasks,
     updateTask,
     addTaskComment,
@@ -149,10 +150,10 @@ export const TasksView: React.FC = () => {
       description: `Task created for ${proj?.name || "Project"}`,
       projectId: proj ? proj.id : "proj-101",
       projectName: proj ? proj.name : "Cloud Portal Migration",
-      assigneeId: "usr-01",
-      assigneeName: "Alex Vance",
-      reporterId: "usr-01",
-      reporterName: "Alex Vance",
+      assigneeId: currentUser.id,
+      assigneeName: currentUser.name,
+      reporterId: currentUser.id,
+      reporterName: currentUser.name,
       priority: quickPriority,
       status: "To Do",
       labels: ["Sprint"],

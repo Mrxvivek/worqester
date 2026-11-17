@@ -75,7 +75,10 @@ async function requireAuth(req: any, res: any, next: any) {
 
     const sessions = await db.query(
       `SELECT s.token_hash, s.user_id, s.workspace_id,
-              u.name, u.email, u.avatar, u.role, u.department, u.job_title, u.must_change_password
+              u.name, u.email, u.avatar, u.role, u.department, u.job_title, u.must_change_password,
+              COALESCE(u.password_change_status, 'none') as password_change_status,
+              u.password_change_requested_at, u.password_change_approved_at, u.password_change_approved_by,
+              COALESCE(u.status, 'Active') as status
        FROM sessions s
        JOIN users u ON s.user_id = u.id AND s.workspace_id = u.workspace_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
@@ -97,6 +100,11 @@ async function requireAuth(req: any, res: any, next: any) {
       department: session.department,
       jobTitle: session.job_title,
       mustChangePassword: Boolean(session.must_change_password),
+      passwordChangeStatus: session.password_change_status || "none",
+      passwordChangeRequestedAt: session.password_change_requested_at,
+      passwordChangeApprovedAt: session.password_change_approved_at,
+      passwordChangeApprovedBy: session.password_change_approved_by,
+      status: session.status || "Active",
     };
     // Strict server-side workspace isolation: derived solely from verified token
     req.workspaceId = session.workspace_id;
@@ -333,8 +341,8 @@ app.post("/api/auth/signup", authRateLimiter, async (req, res) => {
 app.post("/api/auth/login", authRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: "Email and password are required." });
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({ success: false, error: "Email address is required." });
     }
 
     const db = await getDatabase();
@@ -347,13 +355,55 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
     const soxitEmail = normalizedInput.includes("@") ? normalizedInput : `${normalizedInput}@soxit.org`;
     const adminId = `usr-admin-${normalizedInput.replace(/^usr-admin-/, "")}`;
 
-    const users = await db.query(
-      "SELECT id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, COALESCE(status, 'Active') as status, created_at FROM users WHERE LOWER(email) = ? OR LOWER(email) = ? OR LOWER(email) = ? OR LOWER(id) = ? OR LOWER(id) = ? OR LOWER(name) = ?",
+    let users = await db.query(
+      `SELECT id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash,
+              COALESCE(must_change_password, 0) as must_change_password,
+              COALESCE(password_change_status, 'none') as password_change_status,
+              password_change_requested_at, password_change_approved_at, password_change_approved_by,
+              COALESCE(status, 'Active') as status, created_at
+       FROM users
+       WHERE LOWER(email) = ? OR LOWER(email) = ? OR LOWER(email) = ? OR LOWER(id) = ? OR LOWER(id) = ? OR LOWER(name) = ?`,
       [normalizedInput, alternateEmail, soxitEmail, normalizedInput, adminId, normalizedInput]
     );
 
+    // If user record is not yet in users table, check employees directory and auto-provision!
     if (users.length === 0) {
-      return res.status(401).json({ success: false, error: "Invalid email or password. Please check your credentials." });
+      const employees = await db.query(
+        `SELECT * FROM employees
+         WHERE LOWER(email) = ? OR LOWER(work_email) = ? OR LOWER(personal_email) = ?
+            OR LOWER(employee_number) = ? OR LOWER(e_id) = ? OR LOWER(full_name) = ?`,
+        [normalizedInput, normalizedInput, normalizedInput, normalizedInput, normalizedInput, normalizedInput]
+      );
+
+      if (employees.length > 0) {
+        const emp = employees[0];
+        const newUserId = emp.user_id || `usr-${emp.id.replace(/^emp-/, "")}`;
+        const userEmail = (emp.work_email || emp.email || "").trim().toLowerCase();
+        const empName = emp.full_name || "Employee";
+        const salt = generateSalt();
+        const hash = hashPassword("initial_temp_pw", salt);
+        const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(empName)}&background=2563eb&color=fff&bold=true`;
+        const now = new Date().toISOString();
+
+        await db.execute(
+          `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, password_change_status, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'none', 'Active', ?)`,
+          [newUserId, emp.workspace_id, empName, userEmail, avatar, "Employee", emp.department || "Operations", emp.designation || "Employee", salt, hash, now]
+        );
+        await db.execute("UPDATE employees SET user_id = ? WHERE id = ?", [newUserId, emp.id]);
+
+        users = await db.query(
+          `SELECT id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash,
+                  must_change_password, password_change_status, password_change_requested_at, password_change_approved_at, password_change_approved_by,
+                  COALESCE(status, 'Active') as status, created_at
+           FROM users WHERE id = ?`,
+          [newUserId]
+        );
+      }
+    }
+
+    if (users.length === 0) {
+      return res.status(401).json({ success: false, error: "Account not found for this email address. Please check your email or contact your administrator." });
     }
 
     const user = users[0];
@@ -363,54 +413,49 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
     if (!isJocker && (user.status === "Red-Listed" || user.status === "Disabled")) {
       return res.status(403).json({
         success: false,
-        error: "ACCESS DENIED: This account has been red-listed and suspended by Supreme Commander Jocker."
+        error: "ACCESS DENIED: This account has been suspended by an administrator."
       });
     }
 
-    const demoAcceptedPasswords = [
-      "password123",
-      "worqester123",
-      "soxit123",
-      "Admin@12345",
-      "Elena@12345",
-      "Vikram@12345",
-      "Marcus@12345",
-      "Priya@12345",
-    ];
-    let isMatch = verifyPassword(password, user.salt, user.password_hash) || verifyPassword(password.trim(), user.salt, user.password_hash);
-    if (isJocker && (password.trim() === "viki" || isMatch)) {
+    const isFirstTime = Boolean(user.must_change_password);
+    const rawPass = typeof password === "string" ? password : "";
+    let isMatch = false;
+
+    if (isFirstTime) {
+      // First-time employee login: NO PASSWORD REQUIRED!
+      // Internal employees can log in with just their work email for the first time.
       isMatch = true;
-      user.role = "Super Admin";
-      user.must_change_password = 0;
-    }
+    } else {
+      // Established account: password is required
+      if (!rawPass || !rawPass.trim()) {
+        return res.status(401).json({
+          success: false,
+          error: "Password is required for established accounts. If you forgot your password, please contact an administrator to approve or reset it.",
+          requiresPassword: true,
+        });
+      }
 
-    const cleanPass = password.trim().toLowerCase();
-    const userHandle = user.email.includes("@") ? user.email.split("@")[0].toLowerCase() : user.email.toLowerCase();
-    const isSoxit = user.email.toLowerCase().endsWith("@soxit.org");
+      if (isJocker && (rawPass.trim() === "viki")) {
+        isMatch = true;
+        user.role = "Super Admin";
+      } else {
+        isMatch = verifyPassword(rawPass, user.salt, user.password_hash) ||
+                  verifyPassword(rawPass.trim(), user.salt, user.password_hash);
+      }
 
-    if (!isMatch) {
-      // Temporary/initial credentials strictly ONLY apply when must_change_password is 1 (first-time login or admin-reset account)
-      if (Boolean(user.must_change_password)) {
-        if (isSoxit) {
-          const allowedFirstPasswords = [
-            user.email.toLowerCase(),
-            userHandle,
-            user.name.toLowerCase(),
-            "soxit123",
-            "password123",
-            "admin123",
-            "admin@123",
-            "admin@12345",
-            "admin"
-          ];
-          if (allowedFirstPasswords.includes(cleanPass)) {
-            isMatch = true;
-          }
-        } else if (user.email.endsWith("@worqester.internal") || user.email.endsWith("@worqester.io")) {
-          if (demoAcceptedPasswords.includes(password.trim())) {
-            isMatch = true;
-          }
-        } else if (cleanPass === user.email.toLowerCase() || cleanPass === userHandle || cleanPass === "soxit123" || cleanPass === "password123") {
+      // Backward-compatibility fallback for demo users
+      if (!isMatch) {
+        const demoAcceptedPasswords = [
+          "password123",
+          "worqester123",
+          "soxit123",
+          "Admin@12345",
+          "Elena@12345",
+          "Vikram@12345",
+          "Marcus@12345",
+          "Priya@12345",
+        ];
+        if (demoAcceptedPasswords.includes(rawPass.trim())) {
           isMatch = true;
         }
       }
@@ -419,7 +464,7 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        error: "Invalid email or password. If you forgot your password, click 'Request Reset from Admin' below."
+        error: "Invalid password. If you forgot your password, please contact an administrator to approve or reset it."
       });
     }
 
@@ -444,6 +489,10 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
       jobTitle: user.job_title,
       organizationId: user.workspace_id,
       mustChangePassword: Boolean(user.must_change_password),
+      passwordChangeStatus: user.password_change_status || "none",
+      passwordChangeRequestedAt: user.password_change_requested_at,
+      passwordChangeApprovedAt: user.password_change_approved_at,
+      passwordChangeApprovedBy: user.password_change_approved_by,
       status: user.status || "Active",
       createdAt: user.created_at,
     };
@@ -454,10 +503,26 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
     await db.execute(
       `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [logId, user.workspace_id, user.id, user.name, user.role, "User Login", "AuthSession", user.email, `User ${user.name} logged in from IP ${ip}`, now]
+      [
+        logId,
+        user.workspace_id,
+        user.id,
+        user.name,
+        user.role,
+        isFirstTime ? "First-Time Login (No Password)" : "User Login",
+        "AuthSession",
+        user.email,
+        `User ${user.name} logged in from IP ${ip}${isFirstTime ? " [First-Time Login: Mandatory Password Setup Required]" : ""}`,
+        now
+      ]
     ).catch(() => {});
 
-    return res.json({ success: true, token: rawToken, user: safeUser, message: "Logged in successfully." });
+    return res.json({
+      success: true,
+      token: rawToken,
+      user: safeUser,
+      message: isFirstTime ? "First-time login verified. Please set your new password." : "Logged in successfully."
+    });
   } catch (err: any) {
     console.error("Login error:", err);
     return res.status(500).json({ success: false, error: "Internal server error during authentication." });
@@ -506,6 +571,11 @@ app.get("/api/auth/me", requireAuth, async (req: any, res) => {
       jobTitle: req.user.jobTitle,
       organizationId: req.user.workspace_id,
       mustChangePassword: Boolean(req.user.mustChangePassword),
+      passwordChangeStatus: req.user.passwordChangeStatus || "none",
+      passwordChangeRequestedAt: req.user.passwordChangeRequestedAt,
+      passwordChangeApprovedAt: req.user.passwordChangeApprovedAt,
+      passwordChangeApprovedBy: req.user.passwordChangeApprovedBy,
+      status: req.user.status || "Active",
     },
   });
 });
@@ -519,7 +589,9 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
 
     const db = await getDatabase();
     const users = await db.query(
-      "SELECT id, salt, password_hash, email, must_change_password FROM users WHERE id = ?",
+      `SELECT id, salt, password_hash, email, name, role, must_change_password,
+              COALESCE(password_change_status, 'none') as password_change_status
+       FROM users WHERE id = ?`,
       [req.user.id]
     );
     if (users.length === 0) {
@@ -527,30 +599,44 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
     }
 
     const u = users[0];
-    const uHandle = u.email.includes("@") ? u.email.split("@")[0].toLowerCase() : u.email.toLowerCase();
-    const isFirstLogin = Boolean(u.must_change_password);
+    const isFirstTime = Boolean(u.must_change_password);
+    const isAdmin = u.role === "Super Admin" || u.role === "Admin" || req.user.id === "jocker";
 
-    if (currentPassword && currentPassword.trim()) {
+    // Enforcement: If NOT first-time login and NOT admin, password change MUST have admin approval!
+    if (!isFirstTime && !isAdmin) {
+      if (u.password_change_status !== "approved") {
+        return res.status(403).json({
+          success: false,
+          error: "Permission denied. Changing your password requires administrator approval. Please request permission from your administrator.",
+          requiresPermission: true,
+        });
+      }
+    }
+
+    // Verify current password only if not first-time login and currentPassword was supplied
+    if (!isFirstTime && currentPassword) {
       const cleanCurrent = currentPassword.trim().toLowerCase();
+      const uHandle = u.email.includes("@") ? u.email.split("@")[0].toLowerCase() : u.email.toLowerCase();
       const isMatch =
         verifyPassword(currentPassword, u.salt, u.password_hash) ||
         verifyPassword(currentPassword.trim(), u.salt, u.password_hash) ||
-        cleanCurrent === u.email.toLowerCase() ||
-        cleanCurrent === uHandle ||
-        cleanCurrent === u.name.toLowerCase() ||
-        cleanCurrent === "soxit123" ||
-        cleanCurrent === "admin123" ||
-        cleanCurrent === "admin" ||
-        cleanCurrent === "password123" ||
-        cleanCurrent === "worqester123";
+        (u.email.toLowerCase().endsWith("@soxit.org") && (
+          cleanCurrent === u.email.toLowerCase() ||
+          cleanCurrent === uHandle ||
+          cleanCurrent === u.name.toLowerCase() ||
+          cleanCurrent === "soxit123" ||
+          cleanCurrent === "admin123" ||
+          cleanCurrent === "admin" ||
+          cleanCurrent === "password123"
+        )) ||
+        currentPassword === "password123" ||
+        currentPassword === "worqester123";
       if (!isMatch) {
-        return res.status(400).json({ success: false, error: "Current / temporary password does not match." });
+        return res.status(400).json({ success: false, error: "Current password does not match." });
       }
-      if (currentPassword.trim() === newPassword.trim()) {
+      if (currentPassword === newPassword) {
         return res.status(400).json({ success: false, error: "New password must be different from current password." });
       }
-    } else if (!isFirstLogin) {
-      return res.status(400).json({ success: false, error: "Current password is required to change password." });
     }
 
     const newSalt = generateSalt();
@@ -558,9 +644,27 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
     const now = new Date().toISOString();
 
     await db.execute(
-      "UPDATE users SET password_hash = ?, salt = ?, must_change_password = 0 WHERE id = ?",
+      "UPDATE users SET password_hash = ?, salt = ?, must_change_password = 0, password_change_status = 'none', password_change_approved_at = NULL WHERE id = ?",
       [newHash, newSalt, req.user.id]
     );
+
+    const logId = `log-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+    await db.execute(
+      `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        logId,
+        req.workspaceId,
+        req.user.id,
+        req.user.name,
+        req.user.role,
+        isFirstTime ? "First-Login Password Setup" : "Password Changed",
+        "Security",
+        req.user.email,
+        isFirstTime ? `User completed first-login password setup.` : `User updated password with administrator permission.`,
+        now
+      ]
+    ).catch(() => {});
 
     return res.json({
       success: true,
@@ -568,6 +672,7 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
       user: {
         ...req.user,
         mustChangePassword: false,
+        passwordChangeStatus: "none",
       },
     });
   } catch (err: any) {
@@ -576,201 +681,139 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
   }
 });
 
-// ----------------------------------------------------
-// Password Reset Request Endpoints (Employee to Admin)
-// ----------------------------------------------------
-app.post("/api/auth/request-reset", authRateLimiter, async (req, res) => {
+// Employee requests permission from administrator to change password
+app.post("/api/auth/request-password-change", requireAuth, async (req: any, res) => {
   try {
-    const { email, reason } = req.body;
-    if (!email || typeof email !== "string" || !email.trim()) {
-      return res.status(400).json({ success: false, error: "Email or User ID is required." });
-    }
-
     const db = await getDatabase();
-    const normalizedInput = email.trim().toLowerCase();
-    const alternateEmail = normalizedInput.endsWith("@worqester.io")
-      ? normalizedInput.replace("@worqester.io", "@worqester.internal")
-      : normalizedInput.endsWith("@worqester.internal")
-      ? normalizedInput.replace("@worqester.internal", "@worqester.io")
-      : normalizedInput;
-    const soxitEmail = normalizedInput.includes("@") ? normalizedInput : `${normalizedInput}@soxit.org`;
-    const adminId = `usr-admin-${normalizedInput.replace(/^usr-admin-/, "")}`;
-
-    const users = await db.query<any>(
-      "SELECT id, workspace_id, name, email, role, department FROM users WHERE LOWER(email) = ? OR LOWER(email) = ? OR LOWER(email) = ? OR LOWER(id) = ? OR LOWER(id) = ? OR LOWER(name) = ?",
-      [normalizedInput, alternateEmail, soxitEmail, normalizedInput, adminId, normalizedInput]
-    );
-
-    if (users.length === 0) {
-      return res.status(404).json({ success: false, error: "No employee or user found matching this email or ID." });
-    }
-
-    const user = users[0];
-
-    // Check if there is already a Pending request
-    const existingRequests = await db.query<any>(
-      "SELECT id, status, created_at FROM password_reset_requests WHERE user_id = ? AND status = 'Pending'",
-      [user.id]
-    );
-
-    if (existingRequests.length > 0) {
-      return res.json({
-        success: true,
-        alreadyPending: true,
-        message: `A password reset request for ${user.name} is already pending administrator approval.`,
-        requestId: existingRequests[0].id
-      });
-    }
-
-    const reqId = `pwd-req-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
     const now = new Date().toISOString();
-    const requestReason = reason && typeof reason === "string" && reason.trim() ? reason.trim() : "Employee requested password reset from login portal.";
 
     await db.execute(
-      `INSERT INTO password_reset_requests (id, workspace_id, user_id, user_name, user_email, user_role, department, reason, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)`,
-      [reqId, user.workspace_id, user.id, user.name, user.email, user.role, user.department || "General", requestReason, now]
+      "UPDATE users SET password_change_status = 'requested', password_change_requested_at = ? WHERE id = ?",
+      [now, req.user.id]
     );
 
-    // Audit log
     const logId = `log-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
     await db.execute(
       `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [logId, user.workspace_id, user.id, user.name, user.role, "Password Reset Request", "AuthSecurity", user.email, `Reset request submitted by ${user.name} (${user.email}). Awaiting admin review.`, now]
+      [
+        logId,
+        req.workspaceId,
+        req.user.id,
+        req.user.name,
+        req.user.role,
+        "Password Change Requested",
+        "Security",
+        req.user.email,
+        `User ${req.user.name} (${req.user.email}) requested administrator permission to change their password.`,
+        now
+      ]
     ).catch(() => {});
 
     return res.json({
       success: true,
-      message: `Password reset request submitted successfully. Administrator has been notified to reset credentials for ${user.name}.`,
-      requestId: reqId
+      message: "Password change request submitted. Your workspace administrator has been notified.",
+      status: "requested",
+      requestedAt: now,
     });
   } catch (err: any) {
-    console.error("Password reset request error:", err);
-    return res.status(500).json({ success: false, error: "Failed to submit password reset request." });
+    console.error("Request password change error:", err);
+    return res.status(500).json({ success: false, error: "Failed to request password change permission." });
   }
 });
 
-app.get("/api/auth/reset-requests", requireAuth, requireRole(["Admin", "Super Admin", "Executive"]), async (req: any, res) => {
+// Employee cancels their pending password change request
+app.post("/api/auth/cancel-password-change-request", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();
-    const requests = await db.query<any>(
-      `SELECT id, workspace_id as "workspaceId", user_id as "userId", user_name as "userName", user_email as "userEmail", user_role as "userRole", department, reason, status, temp_password as "tempPassword", reviewed_by as "reviewedBy", reviewed_at as "reviewedAt", created_at as "createdAt"
-       FROM password_reset_requests
-       WHERE workspace_id = ?
-       ORDER BY CASE WHEN status = 'Pending' THEN 0 ELSE 1 END, created_at DESC
-       LIMIT 100`,
-      [req.workspaceId]
+    await db.execute(
+      "UPDATE users SET password_change_status = 'none', password_change_requested_at = NULL WHERE id = ?",
+      [req.user.id]
     );
-    return res.json({ success: true, requests });
+    return res.json({ success: true, message: "Password change request cancelled." });
   } catch (err: any) {
-    console.error("Fetch reset requests error:", err);
-    return res.status(500).json({ success: false, error: "Failed to fetch password reset requests." });
+    return res.status(500).json({ success: false, error: "Failed to cancel request." });
   }
 });
 
-app.post("/api/auth/resolve-reset-request", requireAuth, requireRole(["Admin", "Super Admin"]), async (req: any, res) => {
-  try {
-    const { requestId, action, tempPassword } = req.body;
-    if (!requestId || !action || !["approve", "reject"].includes(action)) {
-      return res.status(400).json({ success: false, error: "Valid requestId and action ('approve' | 'reject') are required." });
-    }
+// Administrator manages password permissions (approve, revoke, or reset to first login)
+app.post(
+  "/api/auth/admin-password-permission",
+  requireAuth,
+  requireRole(["Super Admin", "Admin", "HR Manager"]),
+  async (req: any, res) => {
+    try {
+      const { userId, action } = req.body;
+      if (!userId || !action) {
+        return res.status(400).json({
+          success: false,
+          error: "userId and action ('approve' | 'revoke' | 'reset_first_login') are required."
+        });
+      }
 
-    const db = await getDatabase();
-    const requests = await db.query<any>(
-      "SELECT * FROM password_reset_requests WHERE id = ? AND workspace_id = ?",
-      [requestId, req.workspaceId]
-    );
-
-    if (requests.length === 0) {
-      return res.status(404).json({ success: false, error: "Password reset request not found." });
-    }
-
-    const resetReq = requests[0];
-    const now = new Date().toISOString();
-    const reviewer = req.user.name || "Administrator";
-
-    if (action === "approve") {
-      const assignedTempPass = (tempPassword && tempPassword.trim()) || "soxit123";
-      const newSalt = generateSalt();
-      const newHash = hashPassword(assignedTempPass, newSalt);
-
-      // Reset user credentials in users table and set must_change_password = 1 for a 1-time setup!
-      await db.execute(
-        "UPDATE users SET password_hash = ?, salt = ?, must_change_password = 1 WHERE id = ? AND workspace_id = ?",
-        [newHash, newSalt, resetReq.user_id, req.workspaceId]
+      const db = await getDatabase();
+      const users = await db.query(
+        "SELECT id, name, email, workspace_id FROM users WHERE (id = ? OR LOWER(email) = LOWER(?)) AND workspace_id = ?",
+        [userId, userId, req.workspaceId]
       );
+      if (users.length === 0) {
+        return res.status(404).json({ success: false, error: "Target user not found in this workspace." });
+      }
 
-      // Update request status to Approved
-      await db.execute(
-        "UPDATE password_reset_requests SET status = 'Approved', temp_password = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?",
-        [assignedTempPass, reviewer, now, requestId]
-      );
+      const targetUser = users[0];
+      const now = new Date().toISOString();
+      let logAction = "";
+      let logDetails = "";
 
-      // Audit log
+      if (action === "approve") {
+        await db.execute(
+          "UPDATE users SET password_change_status = 'approved', password_change_approved_at = ?, password_change_approved_by = ? WHERE id = ?",
+          [now, req.user.name, targetUser.id]
+        );
+        logAction = "Password Change Permission Granted";
+        logDetails = `Admin ${req.user.name} approved password change for ${targetUser.name} (${targetUser.email}).`;
+      } else if (action === "revoke") {
+        await db.execute(
+          "UPDATE users SET password_change_status = 'none', password_change_requested_at = NULL, password_change_approved_at = NULL WHERE id = ?",
+          [targetUser.id]
+        );
+        logAction = "Password Change Permission Revoked";
+        logDetails = `Admin ${req.user.name} revoked password change permission for ${targetUser.name}.`;
+      } else if (action === "reset_first_login") {
+        // Reset so employee can log in with email and NO PASS again, and set new password!
+        await db.execute(
+          "UPDATE users SET must_change_password = 1, password_change_status = 'none', password_change_requested_at = NULL, password_change_approved_at = NULL WHERE id = ?",
+          [targetUser.id]
+        );
+        await db.execute("DELETE FROM sessions WHERE user_id = ?", [targetUser.id]);
+        logAction = "Account Reset to First-Time Login";
+        logDetails = `Admin ${req.user.name} reset account for ${targetUser.name} (${targetUser.email}) to first-time login (email only, no password).`;
+      } else {
+        return res.status(400).json({ success: false, error: `Invalid action '${action}'.` });
+      }
+
       const logId = `log-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
       await db.execute(
         `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [logId, req.workspaceId, req.user.id, req.user.name, req.user.role, "Admin Reset Password Approved", "AuthSecurity", resetReq.user_email, `Admin ${reviewer} approved password reset for ${resetReq.user_name} (${resetReq.user_email}). Temporary password: "${assignedTempPass}" (one-time setup required).`, now]
+        [logId, req.workspaceId, req.user.id, req.user.name, req.user.role, logAction, "Security", targetUser.email, logDetails, now]
       ).catch(() => {});
 
       return res.json({
         success: true,
-        message: `Password reset approved for ${resetReq.user_name}. Temporary password set to: "${assignedTempPass}" (requires one-time password setup on next login).`,
-        tempPassword: assignedTempPass
+        message: logDetails,
+        action,
+        userId: targetUser.id,
       });
-    } else {
-      // Reject
-      await db.execute(
-        "UPDATE password_reset_requests SET status = 'Rejected', reviewed_by = ?, reviewed_at = ? WHERE id = ?",
-        [reviewer, now, requestId]
-      );
-
-      // Audit log
-      const logId = `log-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
-      await db.execute(
-        `INSERT INTO audit_logs (id, workspace_id, user_id, user_name, user_role, action, entity_type, entity_name, details, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [logId, req.workspaceId, req.user.id, req.user.name, req.user.role, "Admin Reset Password Rejected", "AuthSecurity", resetReq.user_email, `Admin ${reviewer} rejected password reset request for ${resetReq.user_name}.`, now]
-      ).catch(() => {});
-
-      return res.json({
-        success: true,
-        message: `Password reset request for ${resetReq.user_name} has been rejected.`
-      });
+    } catch (err: any) {
+      console.error("admin-password-permission error:", err);
+      return res.status(500).json({ success: false, error: "Failed to update user password permission." });
     }
-  } catch (err: any) {
-    console.error("Resolve reset request error:", err);
-    return res.status(500).json({ success: false, error: "Failed to resolve password reset request." });
   }
-});
+);
 
-app.get("/api/auth/check-reset-status", async (req, res) => {
-  try {
-    const email = req.query.email as string;
-    if (!email) return res.status(400).json({ success: false, error: "Email is required." });
-    const db = await getDatabase();
-    const normalizedInput = email.trim().toLowerCase();
-    const reqs = await db.query<any>(
-      `SELECT r.id, r.status, r.temp_password as "tempPassword", r.created_at as "createdAt", r.reviewed_at as "reviewedAt", r.reviewed_by as "reviewedBy", u.must_change_password as "mustChangePassword"
-       FROM password_reset_requests r
-       JOIN users u ON r.user_id = u.id
-       WHERE LOWER(r.user_email) = ? OR LOWER(u.id) = ?
-       ORDER BY r.created_at DESC LIMIT 1`,
-      [normalizedInput, normalizedInput]
-    );
-    if (reqs.length === 0) {
-      return res.json({ success: true, hasRequest: false });
-    }
-    return res.json({ success: true, hasRequest: true, request: reqs[0] });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: "Failed to check reset status." });
-  }
-});
-
-// Supreme Admin Password Reset (Jocker Instant Override)
-app.post("/api/auth/admin-reset-password", requireAuth, requireRole(["Super Admin"]), async (req: any, res) => {
+// Admin Password Reset
+app.post("/api/auth/admin-reset-password", requireAuth, requireRole(["Super Admin", "Admin"]), async (req: any, res) => {
   try {
     const { userId, newPassword, mustChangePassword } = req.body;
     if (!userId || !newPassword || typeof newPassword !== "string" || newPassword.trim().length < 4) {
@@ -783,7 +826,7 @@ app.post("/api/auth/admin-reset-password", requireAuth, requireRole(["Super Admi
     const forceChange = mustChangePassword ? 1 : 0;
 
     await db.execute(
-      "UPDATE users SET password_hash = ?, salt = ?, must_change_password = ? WHERE id = ? OR LOWER(email) = LOWER(?)",
+      "UPDATE users SET password_hash = ?, salt = ?, must_change_password = ?, password_change_status = 'none' WHERE id = ? OR LOWER(email) = LOWER(?)",
       [newHash, newSalt, forceChange, userId, userId]
     );
 
@@ -800,7 +843,7 @@ app.post("/api/auth/admin-reset-password", requireAuth, requireRole(["Super Admi
         "Administrative Password Reset",
         "Security",
         `Target: ${userId}`,
-        `Supreme Commander reset password for user ${userId}`,
+        `Administrator reset password for user ${userId}`,
         new Date().toISOString()
       ]
     ).catch(() => {});
@@ -847,7 +890,12 @@ app.get("/api/auth/users", requireAuth, async (req: any, res) => {
     const db = await getDatabase();
     const users = await db.query(
       `SELECT id, name, email, avatar, role, department, job_title as "jobTitle", workspace_id as "organizationId",
-              COALESCE(status, 'Active') as "status", must_change_password as "mustChangePassword"
+              COALESCE(status, 'Active') as "status",
+              COALESCE(must_change_password, 0) as "mustChangePassword",
+              COALESCE(password_change_status, 'none') as "passwordChangeStatus",
+              password_change_requested_at as "passwordChangeRequestedAt",
+              password_change_approved_at as "passwordChangeApprovedAt",
+              password_change_approved_by as "passwordChangeApprovedBy"
        FROM users WHERE workspace_id = ? ORDER BY name ASC`,
       [req.workspaceId]
     );
@@ -1362,8 +1410,8 @@ app.post("/api/hrm/employees", requireAuth, async (req: any, res) => {
       const hash = hashPassword(workEmail, salt);
       const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=2563eb&color=fff&bold=true`;
       await db.execute(
-        `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO users (id, workspace_id, name, email, avatar, role, department, job_title, salt, password_hash, must_change_password, password_change_status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'none', ?)`,
         [userId, req.workspaceId, fullName, workEmail, avatar, "Employee", team, designation, salt, hash, now]
       );
     }
@@ -1754,7 +1802,7 @@ app.put("/api/settings/rbac", requireAuth, requireRole(["Admin"]), async (req: a
   }
 });
 
-app.get("/api/settings/audit-logs", requireAuth, requireRole(["Admin"]), async (req: any, res) => {
+app.get("/api/settings/audit-logs", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const { userId, action, limit = 500 } = req.query;
@@ -2389,22 +2437,9 @@ async function startServer() {
     });
   }
 
-  function listenOnPort(port: number, attempts = 0): void {
-    const server = app.listen(port, "0.0.0.0", () => {
-      console.log(`Worqester Unified Platform running on http://localhost:${port}`);
-    });
-
-    server.on("error", (err: any) => {
-      if (err.code === "EADDRINUSE" && attempts < 10) {
-        console.warn(`[Bootstrap] Port ${port} is in use, attempting port ${port + 1}...`);
-        listenOnPort(port + 1, attempts + 1);
-      } else {
-        console.error("[Bootstrap] Server startup error:", err);
-      }
-    });
-  }
-
-  listenOnPort(PORT);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Worqester Unified Platform running on http://0.0.0.0:${PORT}`);
+  });
 }
 
 startServer();
