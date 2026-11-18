@@ -168,7 +168,7 @@ export const initialUsers: User[] = [
 ];
 
 export const initialSettings: SystemSettings = {
-  companyName: "Worqester Technologies",
+  companyName: "Worqestra Technologies",
   tagline: "Manage Customers. People. Projects. Growth.",
   currency: "INR",
   currencySymbol: "₹",

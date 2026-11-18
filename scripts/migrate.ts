@@ -5,7 +5,7 @@ dotenv.config();
 
 async function main() {
   console.log("===============================================================");
-  console.log("              WORQESTER DATABASE MIGRATION RUNNER             ");
+  console.log("              WORQESTRA DATABASE MIGRATION RUNNER             ");
   console.log("===============================================================\n");
 
   const startTime = Date.now();

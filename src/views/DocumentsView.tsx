@@ -47,7 +47,7 @@ export const DocumentsView: React.FC = () => {
       a.click();
       document.body.removeChild(a);
     } else {
-      const content = `========================================\nWORQESTER ENTERPRISE DOCUMENT REPOSITORY\n========================================\n\nTitle: ${docTitle}\nFile: ${docFileName}\nVersion: ${docVersion}\nCategory: ${doc.category || "General"}\nUploaded By: ${docUploadedBy}\nDate: ${doc.uploadedAt || new Date().toISOString().split("T")[0]}\nTags: ${(Array.isArray(doc.tags) ? doc.tags : []).join(", ")}\n\n[Content stored in Worqester Enterprise Knowledge Store]`;
+      const content = `========================================\nWORQESTRA ENTERPRISE DOCUMENT REPOSITORY\n========================================\n\nTitle: ${docTitle}\nFile: ${docFileName}\nVersion: ${docVersion}\nCategory: ${doc.category || "General"}\nUploaded By: ${docUploadedBy}\nDate: ${doc.uploadedAt || new Date().toISOString().split("T")[0]}\nTags: ${(Array.isArray(doc.tags) ? doc.tags : []).join(", ")}\n\n[Content stored in Worqestra Enterprise Knowledge Store]`;
       const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

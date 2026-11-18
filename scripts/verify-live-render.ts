@@ -19,7 +19,7 @@ function request(options: https.RequestOptions, data?: any): Promise<{ status: n
   });
 }
 
-export async function runRenderVerification(hostname = "worqester.onrender.com") {
+export async function runRenderVerification(hostname = process.env.RENDER_HOSTNAME || "worqestra.onrender.com") {
   console.log("=================================================================");
   console.log(`        LIVE PRODUCTION DEPLOYMENT ACCEPTANCE TEST SUITE         `);
   console.log(`        Target: https://${hostname}                             `);

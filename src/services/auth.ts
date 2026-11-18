@@ -1,8 +1,10 @@
 import { User, UserRole } from "../types";
 import { initialUsers } from "./seedData";
 
-const AUTH_TOKEN_KEY = "worqester_auth_token_v1";
-const AUTH_USER_KEY = "worqester_auth_user_v1";
+const AUTH_TOKEN_KEY = "worqestra_auth_token_v1";
+const AUTH_TOKEN_LEGACY_KEY = "worqester_auth_token_v1";
+const AUTH_USER_KEY = "worqestra_auth_user_v1";
+const AUTH_USER_LEGACY_KEY = "worqester_auth_user_v1";
 
 export interface AuthResponse {
   success: boolean;
@@ -55,7 +57,7 @@ export const fallbackDemoUsers: DemoUser[] = [
 export class AuthService {
   static getToken(): string | null {
     try {
-      return localStorage.getItem(AUTH_TOKEN_KEY);
+      return localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem(AUTH_TOKEN_LEGACY_KEY);
     } catch {
       return null;
     }
@@ -63,7 +65,7 @@ export class AuthService {
 
   static getStoredUser(): User | null {
     try {
-      const raw = localStorage.getItem(AUTH_USER_KEY);
+      const raw = localStorage.getItem(AUTH_USER_KEY) || localStorage.getItem(AUTH_USER_LEGACY_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -78,6 +80,8 @@ export class AuthService {
     try {
       localStorage.setItem(AUTH_TOKEN_KEY, token);
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      localStorage.removeItem(AUTH_TOKEN_LEGACY_KEY);
+      localStorage.removeItem(AUTH_USER_LEGACY_KEY);
     } catch (e) {
       console.error("Failed to store auth session:", e);
     }
@@ -87,6 +91,8 @@ export class AuthService {
     try {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem(AUTH_USER_KEY);
+      localStorage.removeItem(AUTH_TOKEN_LEGACY_KEY);
+      localStorage.removeItem(AUTH_USER_LEGACY_KEY);
     } catch (e) {
       console.error("Failed to clear auth session:", e);
     }
@@ -163,6 +169,7 @@ export class AuthService {
       if (
         matchUser &&
         (password.trim().toLowerCase() === normalizedEmail ||
+          password === "worqestra123" ||
           password === "worqester123" ||
           password === "password123")
       ) {

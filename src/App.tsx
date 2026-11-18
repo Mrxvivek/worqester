@@ -104,7 +104,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("Worqester UI Error Boundary Caught:", error, errorInfo);
+    console.error("Worqestra UI Error Boundary Caught:", error, errorInfo);
   }
 
   render() {

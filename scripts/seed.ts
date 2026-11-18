@@ -6,7 +6,7 @@ dotenv.config();
 
 async function main() {
   console.log("===============================================================");
-  console.log("             WORQESTER DATABASE SEED CLI SCRIPT                ");
+  console.log("             WORQESTRA DATABASE SEED CLI SCRIPT                ");
   console.log("===============================================================\n");
 
   // Production Guard

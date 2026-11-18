@@ -240,7 +240,7 @@ export const DashboardView: React.FC = () => {
             <div className="flex items-center gap-2 text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">
               <span>Employee Workspace & Daily Overview</span>
               <span>•</span>
-              <span className="font-mono text-slate-400 dark:text-slate-500">Worqester Team Hub</span>
+              <span className="font-mono text-slate-400 dark:text-slate-500">Worqestra Team Hub</span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
               Welcome back, {currentUser.name}
@@ -761,13 +761,13 @@ export const DashboardView: React.FC = () => {
           <div className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
             <span>Executive Business Command Center</span>
             <span>•</span>
-            <span className="font-mono text-slate-400">Worqester Cloud Core</span>
+            <span className="font-mono text-slate-400">Worqestra Cloud Core</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Welcome back, {currentUser.name}
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Real-time telemetry for {settings?.companyName || "Worqester Technologies"}: {kpis.activeProjects} active projects,{" "}
+            Real-time telemetry for {settings?.companyName || "Worqestra Technologies"}: {kpis.activeProjects} active projects,{" "}
             {periodDeals.length} sales opportunities, and {kpis.totalEmployees} team members.
           </p>
         </div>

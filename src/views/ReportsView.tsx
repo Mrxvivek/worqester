@@ -213,7 +213,7 @@ export const ReportsView: React.FC = () => {
   // Export Real CSV with Filtered Report Data
   const exportReport = () => {
     const rows = [
-      ["Worqester Executive Business Performance Report"],
+      ["Worqestra Executive Business Performance Report"],
       [`Generated At: ${new Date().toISOString()}`],
       [`Time Period: ${startDate} to ${endDate} (${rangePreset.toUpperCase()})`],
       [`Department: ${selectedDept}`],
@@ -243,7 +243,7 @@ export const ReportsView: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `worqester_manual_report_${startDate}_to_${endDate}.csv`);
+    link.setAttribute("download", `worqestra_manual_report_${startDate}_to_${endDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

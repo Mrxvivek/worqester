@@ -7,15 +7,15 @@ async function runTest() {
   // 1. Verify Users & Auth Roles
   console.log("\n[1/6] Verifying User Personas...");
   const users = await db.query<any>("SELECT id, name, email, role, workspace_id FROM users;");
-  const admin = users.find((u) => u.email === "alex.vance@worqester.internal");
-  const pm = users.find((u) => u.email === "elena.rostova@worqester.internal");
-  const employee = users.find((u) => u.email === "vikram.patel@worqester.internal") || users.find((u) => u.role === "Employee");
+  const admin = users.find((u) => u.role === "Super Admin" || u.role === "Admin");
+  const pm = users.find((u) => u.role === "Project Manager") || users.find((u) => u.role === "Admin");
+  const employee = users.find((u) => u.role === "Employee");
 
   console.log(`  ✓ Admin: ${admin?.name} (${admin?.role})`);
   console.log(`  ✓ PM: ${pm?.name} (${pm?.role})`);
-  console.log(`  ✓ Employee: ${employee?.name || "Vikram Patel"} (${employee?.role || "Employee"})`);
+  console.log(`  ✓ Employee: ${employee?.name} (${employee?.role})`);
 
-  const workspaceId = admin?.workspace_id || users[0].workspace_id;
+  const workspaceId = admin?.workspace_id || users[0]?.workspace_id || "org-worqester-01";
 
   // 2. Tasks CRUD with Comments & Notes
   console.log("\n[2/6] Verifying Task Creation with Notes & Comments...");

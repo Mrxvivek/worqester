@@ -118,7 +118,7 @@ export const Topbar: React.FC = () => {
             W
           </div>
           <span className="font-bold text-slate-900 dark:text-white tracking-tight text-sm">
-            Worqester
+            Worqestra
           </span>
         </div>
 
@@ -276,7 +276,7 @@ export const Topbar: React.FC = () => {
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-blue-700 text-xs font-semibold transition-all cursor-pointer"
         >
           <Sparkles size={14} className="text-blue-600" />
-          <span className="hidden md:inline">Worqester AI</span>
+          <span className="hidden md:inline">Worqestra AI</span>
         </button>
 
         {/* Theme Toggle Button (Light / Dark) */}

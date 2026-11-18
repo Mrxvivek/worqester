@@ -1609,7 +1609,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({ isOpen, onClos
             <input
               type="email"
               required
-              placeholder="rachel.adams@worqester.internal"
+              placeholder="rachel.adams@worqestra.internal"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-blue-500"

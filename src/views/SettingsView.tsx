@@ -67,7 +67,7 @@ export const SettingsView: React.FC = () => {
   const [passwordActionFeedback, setPasswordActionFeedback] = useState<string | null>(null);
   const activeSubView = currentSubView || "general";
 
-  const [companyName, setCompanyName] = useState(settings?.companyName || "Worqester Technologies");
+  const [companyName, setCompanyName] = useState(settings?.companyName || "Worqestra Technologies");
   const [tagline, setTagline] = useState(settings?.tagline || "");
   const [currency, setCurrency] = useState(settings?.currency || "INR");
   const [currencySymbol, setCurrencySymbol] = useState(settings?.currencySymbol || "₹");
@@ -123,7 +123,7 @@ export const SettingsView: React.FC = () => {
     const backupData = {
       exportedAt: new Date().toISOString(),
       version: "2.0.0",
-      app: "Worqester",
+      app: "Worqestra",
       companies,
       contacts,
       leads,
@@ -143,7 +143,7 @@ export const SettingsView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `worqester-backup-${Date.now()}.json`;
+    a.download = `worqestra-backup-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -388,7 +388,7 @@ export const SettingsView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "worqester-original-data-template.json";
+    a.download = "worqestra-original-data-template.json";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -885,7 +885,7 @@ export const SettingsView: React.FC = () => {
                 { key: "hrm" as const, name: "Human Resource Management (HRM)", desc: "Employee directory, attendance, leaves, recruitment ATS" },
                 { key: "projects" as const, name: "Project Management & Roadmaps", desc: "Initiatives, milestone tracking, budget burn" },
                 { key: "tasks" as const, name: "Task Execution & Kanban", desc: "Interactive sprint boards, SLA compliance, time tracking" },
-                { key: "ai" as const, name: "Worqester AI & Automations", desc: "Autonomous briefings, smart priority, operations audits" },
+                { key: "ai" as const, name: "Worqestra AI & Automations", desc: "Autonomous briefings, smart priority, operations audits" },
               ].map((mod) => {
                 const isEnabled = Boolean(currentModules[mod.key]);
                 return (

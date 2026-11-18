@@ -117,7 +117,7 @@ export const AiIntelligenceView: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white tracking-tight">
-                    Worqester Autonomous Operational Briefing
+                    Worqestra Autonomous Operational Briefing
                   </h3>
                   <span className="text-[11px] text-indigo-300 font-mono">
                     Model: Gemini 2.5 Flash Enterprise Reasoning Engine

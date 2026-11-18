@@ -13,7 +13,7 @@ export async function seedDatabase(db: DatabaseAdapter, isAutoSeed = false): Pro
   if (!isAutoSeed) console.log("[Seed] Initializing primary tenant workspace...");
   await db.execute(
     "INSERT OR IGNORE INTO workspaces (id, name, slug, plan, created_at) VALUES (?, ?, ?, ?, ?)",
-    [workspaceId, "Worqester Technologies", "worqester", "Enterprise Cloud", now]
+    [workspaceId, "Worqestra Technologies", "worqestra", "Enterprise Cloud", now]
   );
 
   // 2. Users (PBKDF2-HMAC-SHA256 with 600k iterations)

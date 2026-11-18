@@ -207,7 +207,7 @@ export const Sidebar: React.FC = () => {
             </div>
             {(!sidebarCollapsed || mobileMenuOpen) && (
               <span className="text-white text-lg font-bold tracking-tight truncate">
-                Worqester
+                Worqestra
               </span>
             )}
           </div>

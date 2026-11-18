@@ -174,7 +174,7 @@ export const generatePayslipPDF = (employee: Employee, monthYear: string = "Augu
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
   doc.text("Note: This document is a digitally verified computer-generated payslip under Worqestra HRM Platform.", 15, 270);
-  doc.text("For discrepancy inquiries, contact HR People Operations at hr.payroll@worqester.internal", 15, 274);
+  doc.text("For discrepancy inquiries, contact HR People Operations at hr.payroll@worqestra.internal", 15, 274);
 
   doc.save(`Payslip_${employee.fullName.replace(/\s+/g, "_")}_${monthYear.replace(/\s+/g, "_")}.pdf`);
 };

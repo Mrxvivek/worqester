@@ -7,7 +7,7 @@ dotenv.config();
 
 async function main() {
   console.log("===============================================================");
-  console.log("         WORQESTER PORTABLE TENANT DATA EXPORT TOOL            ");
+  console.log("         WORQESTRA PORTABLE TENANT DATA EXPORT TOOL            ");
   console.log("===============================================================");
   console.log("  Note: This tool provides portable, credential-sanitized JSON  ");
   console.log("  tenant data exports. For full disaster recovery (indexes,     ");

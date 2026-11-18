@@ -37,7 +37,7 @@ export const AiAssistantDrawer: React.FC = () => {
     {
       id: "msg-welcome",
       sender: "ai",
-      text: `Hello! I am your Worqester Intelligence Co-Pilot. I have analyzed your ${projects.length} active enterprise projects, ${deals.length} deals in pipeline, and ${employees.length} team members. Ask me anything about executive health, resource allocation, or strategic interventions.`,
+      text: `Hello! I am your Worqestra Intelligence Co-Pilot. I have analyzed your ${projects.length} active enterprise projects, ${deals.length} deals in pipeline, and ${employees.length} team members. Ask me anything about executive health, resource allocation, or strategic interventions.`,
       timestamp: "Just now",
     },
   ]);
@@ -67,7 +67,7 @@ export const AiAssistantDrawer: React.FC = () => {
     setLoading(true);
 
     try {
-      const token = AuthService.getToken() || localStorage.getItem("token") || localStorage.getItem("worqester_auth_token_v1");
+      const token = AuthService.getToken() || localStorage.getItem("token") || localStorage.getItem("worqestra_auth_token_v1") || localStorage.getItem("worqester_auth_token_v1");
       const response = await fetch("/api/ai/ask", {
         method: "POST",
         headers: {
@@ -144,7 +144,7 @@ export const AiAssistantDrawer: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
-                  Worqester AI Co-Pilot
+                  Worqestra AI Co-Pilot
                   <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono font-bold border border-amber-500/30">
                     GEMINI
                   </span>
@@ -214,7 +214,7 @@ export const AiAssistantDrawer: React.FC = () => {
             {loading && (
               <div className="flex items-center gap-2 text-xs text-slate-400 p-2">
                 <Loader2 size={15} className="animate-spin text-amber-400" />
-                <span>Worqester AI is reasoning across your operational graph...</span>
+                <span>Worqestra AI is reasoning across your operational graph...</span>
               </div>
             )}
             <div ref={messagesEndRef} />

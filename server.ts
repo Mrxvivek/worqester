@@ -347,7 +347,11 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
 
     const db = await getDatabase();
     const normalizedInput = email.trim().toLowerCase();
-    const alternateEmail = normalizedInput.endsWith("@worqester.io")
+    const alternateEmail = normalizedInput.endsWith("@worqestra.io")
+      ? normalizedInput.replace("@worqestra.io", "@worqestra.internal")
+      : normalizedInput.endsWith("@worqestra.internal")
+      ? normalizedInput.replace("@worqestra.internal", "@worqestra.io")
+      : normalizedInput.endsWith("@worqester.io")
       ? normalizedInput.replace("@worqester.io", "@worqester.internal")
       : normalizedInput.endsWith("@worqester.internal")
       ? normalizedInput.replace("@worqester.internal", "@worqester.io")
@@ -447,6 +451,7 @@ app.post("/api/auth/login", authRateLimiter, async (req, res) => {
       if (!isMatch) {
         const demoAcceptedPasswords = [
           "password123",
+          "worqestra123",
           "worqester123",
           "soxit123",
           "Admin@12345",
@@ -630,6 +635,7 @@ app.post("/api/auth/change-password", requireAuth, async (req: any, res) => {
           cleanCurrent === "password123"
         )) ||
         currentPassword === "password123" ||
+        currentPassword === "worqestra123" ||
         currentPassword === "worqester123";
       if (!isMatch) {
         return res.status(400).json({ success: false, error: "Current password does not match." });
@@ -932,7 +938,7 @@ app.get("/api/health", async (req, res) => {
     const db = await getDatabase();
     return res.json({
       status: "ok",
-      app: "Worqester Unified Enterprise Platform",
+      app: "Worqestra Unified Enterprise Platform",
       version: "2.0.0-relational",
       database: db.isPostgres() ? "postgresql" : "sqlite",
       sqliteFallbackActive: !db.isPostgres(),
@@ -941,7 +947,7 @@ app.get("/api/health", async (req, res) => {
   } catch (err: any) {
     return res.status(500).json({
       status: "error",
-      app: "Worqester Unified Enterprise Platform",
+      app: "Worqestra Unified Enterprise Platform",
       version: "2.0.0-relational",
       error: err.message,
       timestamp: new Date().toISOString(),
@@ -2227,7 +2233,7 @@ ${inNegotiation.length > 0
   }
 
   // 4. Default Comprehensive Intelligence Briefing
-  return `### 🌐 Worqester Executive Intelligence Briefing
+  return `### 🌐 Worqestra Executive Intelligence Briefing
 *Role: ${userRole || "Executive"} | Engine: Dynamic Business Analytics*
 
 **Prompt:** "${prompt}"
@@ -2266,7 +2272,7 @@ app.post("/api/ai/ask", requireAuth, async (req: any, res) => {
     let answerText = "";
     let source = "company-gemini";
     try {
-      const systemInstruction = `You are the executive AI Intelligence Assistant embedded in "Worqester", a unified enterprise business management SaaS platform.
+      const systemInstruction = `You are the executive AI Intelligence Assistant embedded in "Worqestra", a unified enterprise business management SaaS platform.
 The user is logged in with role: "${userRole || "User"}".
 Adhere strictly to enterprise data security and RBAC: only discuss data provided in the business context.
 Respond with structured, highly professional, direct answers. Include bullet points, metric callouts, and clear recommendations.
@@ -2438,7 +2444,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Worqester Unified Platform running on http://0.0.0.0:${PORT}`);
+    console.log(`Worqestra Unified Platform running on http://0.0.0.0:${PORT}`);
   });
 }
 

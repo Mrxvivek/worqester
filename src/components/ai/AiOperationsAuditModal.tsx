@@ -211,7 +211,7 @@ export const AiOperationsAuditModal: React.FC = () => {
               <CheckCircle2 size={32} className="mx-auto text-emerald-400 mb-2" />
               <h4 className="text-sm font-bold text-white">All Operational Anomalies Cleared!</h4>
               <p className="text-xs text-slate-400 mt-1">
-                Worqester's automated safety triggers and remediation actions have stabilized all workflows.
+                Worqestra's automated safety triggers and remediation actions have stabilized all workflows.
               </p>
             </div>
           )}
