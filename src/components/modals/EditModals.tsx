@@ -579,8 +579,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       actualHours: Number(actualHours),
       projectId: projectId || task.projectId,
       projectName: selectedProj ? selectedProj.name : task.projectName,
-      assigneeId: assigneeId || task.assigneeId,
-      assigneeName: selectedEmp ? selectedEmp.fullName : task.assigneeName,
+      assigneeId: assigneeId !== undefined ? assigneeId : task.assigneeId,
+      assigneeName: selectedEmp ? selectedEmp.fullName : (assigneeId ? task.assigneeName : "Unassigned"),
       comments,
     });
     onClose();

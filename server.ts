@@ -1228,21 +1228,40 @@ app.get("/api/tasks", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const tasks = await db.query(
-      `SELECT t.id, t.project_id as "projectId", COALESCE(p.name, 'General Project') as "projectName",
-              t.title, t.description, t.assignee_id as "assigneeId", COALESCE(u.name, 'Unassigned') as "assigneeName",
-              u.avatar as "assigneeAvatar",
-              t.priority, t.status, t.due_date as "dueDate", t.estimated_hours as "estimatedHours", t.actual_hours as "actualHours",
-              t.comments, t.notes
+      `SELECT t.id,
+              t.workspace_id as "organizationId",
+              t.project_id as "projectId",
+              COALESCE(p.name, 'General Project') as "projectName",
+              t.title,
+              COALESCE(t.description, '') as "description",
+              t.assignee_id as "assigneeId",
+              COALESCE(u.name, 'Unassigned') as "assigneeName",
+              COALESCE(u.avatar, '') as "assigneeAvatar",
+              t.priority,
+              t.status,
+              t.due_date as "dueDate",
+              COALESCE(t.estimated_hours, 0) as "estimatedHours",
+              COALESCE(t.actual_hours, 0) as "actualHours",
+              t.comments,
+              COALESCE(t.notes, '') as "notes",
+              t.created_at as "createdAt",
+              t.updated_at as "updatedAt"
        FROM tasks t
        LEFT JOIN projects p ON t.project_id = p.id
        LEFT JOIN users u ON t.assignee_id = u.id
-       WHERE t.workspace_id = ? ORDER BY t.created_at DESC`,
+       WHERE t.workspace_id = ?
+       ORDER BY t.created_at DESC`,
       [req.workspaceId]
     );
     const parsedTasks = tasks.map((t: any) => ({
       ...t,
+      reporterId: req.user.id,
+      reporterName: req.user.name,
+      labels: ["Sprint"],
       comments: typeof t.comments === "string" ? (() => { try { return JSON.parse(t.comments); } catch { return []; } })() : (t.comments || []),
       notes: t.notes || "",
+      estimatedHours: Number(t.estimatedHours || 0),
+      actualHours: Number(t.actualHours || 0),
     }));
     return res.json({ success: true, tasks: parsedTasks });
   } catch (err: any) {
@@ -1253,17 +1272,102 @@ app.get("/api/tasks", requireAuth, async (req: any, res) => {
 app.post("/api/tasks", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();
-    const t = req.body;
+    const t = req.body || {};
     const id = t.id || `tsk-${Date.now().toString(36)}`;
     const now = new Date().toISOString();
+
+    // 1. Resolve Project ID
+    let resolvedProjectId = t.projectId ? String(t.projectId).trim() : null;
+    if (resolvedProjectId) {
+      const projCheck = await db.query("SELECT id FROM projects WHERE id = ? AND workspace_id = ? LIMIT 1", [resolvedProjectId, req.workspaceId]);
+      if (!projCheck || projCheck.length === 0) {
+        resolvedProjectId = null;
+      }
+    }
+    if (!resolvedProjectId) {
+      const anyProj = await db.query("SELECT id FROM projects WHERE workspace_id = ? LIMIT 1", [req.workspaceId]);
+      if (anyProj && anyProj.length > 0) {
+        resolvedProjectId = anyProj[0].id;
+      } else {
+        resolvedProjectId = `proj-${Date.now().toString(36)}`;
+        await db.execute(
+          `INSERT INTO projects (id, workspace_id, name, code, status, health, priority, budget, spent, progress, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [resolvedProjectId, req.workspaceId, "Core Operational Deliverables", "PRJ-CORE", "In Progress", "Healthy", "High", 2500000, 0, 0, now, now]
+        );
+      }
+    }
+
+    // 2. Resolve Assignee ID (handles user ID, employee ID, or unassigned)
+    let resolvedAssigneeId: string | null = t.assigneeId ? String(t.assigneeId).trim() : null;
+    if (resolvedAssigneeId) {
+      const userCheck = await db.query("SELECT id FROM users WHERE id = ? LIMIT 1", [resolvedAssigneeId]);
+      if (!userCheck || userCheck.length === 0) {
+        const empCheck = await db.query("SELECT user_id FROM employees WHERE id = ? LIMIT 1", [resolvedAssigneeId]);
+        if (empCheck && empCheck.length > 0 && empCheck[0].user_id) {
+          const mappedUserCheck = await db.query("SELECT id FROM users WHERE id = ? LIMIT 1", [empCheck[0].user_id]);
+          resolvedAssigneeId = mappedUserCheck && mappedUserCheck.length > 0 ? empCheck[0].user_id : null;
+        } else {
+          resolvedAssigneeId = null;
+        }
+      }
+    } else {
+      resolvedAssigneeId = null;
+    }
+
+    const title = (t.title || "Untitled Task").trim();
+    const description = t.description || "";
+    const priority = t.priority || "Medium";
+    const status = t.status || "To Do";
+    const dueDate = t.dueDate ? String(t.dueDate) : null;
+    const estimatedHours = Number(t.estimatedHours) || 0;
+    const actualHours = Number(t.actualHours) || 0;
     const commentsJson = t.comments ? (typeof t.comments === "string" ? t.comments : JSON.stringify(t.comments)) : "[]";
+    const notes = t.notes || "";
+
     await db.execute(
       `INSERT INTO tasks (id, workspace_id, project_id, title, description, assignee_id, priority, status, due_date, estimated_hours, actual_hours, comments, notes, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, req.workspaceId, t.projectId, t.title, t.description || "", t.assigneeId || req.user.id, t.priority || "Medium", t.status || "To Do", t.dueDate, t.estimatedHours || 0, t.actualHours || 0, commentsJson, t.notes || "", now, now]
+      [id, req.workspaceId, resolvedProjectId, title, description, resolvedAssigneeId, priority, status, dueDate, estimatedHours, actualHours, commentsJson, notes, now, now]
     );
-    return res.status(201).json({ success: true, task: { ...t, id, comments: Array.isArray(t.comments) ? t.comments : [], notes: t.notes || "" } });
+
+    const inserted = await db.query(
+      `SELECT t.id,
+              t.workspace_id as "organizationId",
+              t.project_id as "projectId",
+              COALESCE(p.name, 'General Project') as "projectName",
+              t.title,
+              COALESCE(t.description, '') as "description",
+              t.assignee_id as "assigneeId",
+              COALESCE(u.name, 'Unassigned') as "assigneeName",
+              COALESCE(u.avatar, '') as "assigneeAvatar",
+              t.priority,
+              t.status,
+              t.due_date as "dueDate",
+              COALESCE(t.estimated_hours, 0) as "estimatedHours",
+              COALESCE(t.actual_hours, 0) as "actualHours",
+              t.comments,
+              COALESCE(t.notes, '') as "notes",
+              t.created_at as "createdAt",
+              t.updated_at as "updatedAt"
+       FROM tasks t
+       LEFT JOIN projects p ON t.project_id = p.id
+       LEFT JOIN users u ON t.assignee_id = u.id
+       WHERE t.id = ? AND t.workspace_id = ?`,
+      [id, req.workspaceId]
+    );
+
+    const resultTask = inserted && inserted.length > 0 ? {
+      ...inserted[0],
+      reporterId: req.user.id,
+      reporterName: req.user.name,
+      labels: Array.isArray(t.labels) ? t.labels : ["Sprint"],
+      comments: typeof inserted[0].comments === "string" ? (() => { try { return JSON.parse(inserted[0].comments); } catch { return []; } })() : (inserted[0].comments || []),
+    } : { ...t, id };
+
+    return res.status(201).json({ success: true, task: resultTask });
   } catch (err: any) {
+    console.error("POST /api/tasks error:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -1271,20 +1375,132 @@ app.post("/api/tasks", requireAuth, async (req: any, res) => {
 app.put("/api/tasks/:id", requireAuth, async (req: any, res) => {
   try {
     const db = await getDatabase();
-    const t = req.body;
+    const t = req.body || {};
     const now = new Date().toISOString();
-    const commentsJson = t.comments !== undefined ? (typeof t.comments === "string" ? t.comments : JSON.stringify(t.comments)) : null;
-    await db.execute(
-      `UPDATE tasks SET title = COALESCE(?, title), description = COALESCE(?, description),
-              project_id = COALESCE(?, project_id), assignee_id = COALESCE(?, assignee_id),
-              priority = COALESCE(?, priority), status = COALESCE(?, status), due_date = COALESCE(?, due_date),
-              estimated_hours = COALESCE(?, estimated_hours), actual_hours = COALESCE(?, actual_hours),
-              comments = COALESCE(?, comments), notes = COALESCE(?, notes), updated_at = ?
-       WHERE id = ? AND workspace_id = ?`,
-      [t.title, t.description, t.projectId, t.assigneeId, t.priority, t.status, t.dueDate, t.estimatedHours, t.actualHours, commentsJson, t.notes, now, req.params.id, req.workspaceId]
+
+    const existing = await db.query("SELECT * FROM tasks WHERE id = ? AND workspace_id = ?", [req.params.id, req.workspaceId]);
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ success: false, error: "Task not found." });
+    }
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (t.title !== undefined) {
+      updates.push("title = ?");
+      params.push(String(t.title).trim());
+    }
+    if (t.description !== undefined) {
+      updates.push("description = ?");
+      params.push(String(t.description));
+    }
+    if (t.projectId !== undefined) {
+      let validProjId = t.projectId ? String(t.projectId).trim() : null;
+      if (validProjId) {
+        const pCheck = await db.query("SELECT id FROM projects WHERE id = ? AND workspace_id = ? LIMIT 1", [validProjId, req.workspaceId]);
+        if (!pCheck || pCheck.length === 0) {
+          validProjId = existing[0].project_id;
+        }
+      } else {
+        validProjId = existing[0].project_id;
+      }
+      updates.push("project_id = ?");
+      params.push(validProjId);
+    }
+    if (t.assigneeId !== undefined) {
+      let validAssigneeId: string | null = t.assigneeId ? String(t.assigneeId).trim() : null;
+      if (validAssigneeId) {
+        const uCheck = await db.query("SELECT id FROM users WHERE id = ? LIMIT 1", [validAssigneeId]);
+        if (!uCheck || uCheck.length === 0) {
+          const empCheck = await db.query("SELECT user_id FROM employees WHERE id = ? LIMIT 1", [validAssigneeId]);
+          if (empCheck && empCheck.length > 0 && empCheck[0].user_id) {
+            const mappedUserCheck = await db.query("SELECT id FROM users WHERE id = ? LIMIT 1", [empCheck[0].user_id]);
+            validAssigneeId = mappedUserCheck && mappedUserCheck.length > 0 ? empCheck[0].user_id : null;
+          } else {
+            validAssigneeId = null;
+          }
+        }
+      } else {
+        validAssigneeId = null;
+      }
+      updates.push("assignee_id = ?");
+      params.push(validAssigneeId);
+    }
+    if (t.priority !== undefined) {
+      updates.push("priority = ?");
+      params.push(String(t.priority));
+    }
+    if (t.status !== undefined) {
+      updates.push("status = ?");
+      params.push(String(t.status));
+    }
+    if (t.dueDate !== undefined) {
+      updates.push("due_date = ?");
+      params.push(t.dueDate ? String(t.dueDate) : null);
+    }
+    if (t.estimatedHours !== undefined) {
+      updates.push("estimated_hours = ?");
+      params.push(Number(t.estimatedHours) || 0);
+    }
+    if (t.actualHours !== undefined) {
+      updates.push("actual_hours = ?");
+      params.push(Number(t.actualHours) || 0);
+    }
+    if (t.comments !== undefined) {
+      updates.push("comments = ?");
+      params.push(typeof t.comments === "string" ? t.comments : JSON.stringify(t.comments));
+    }
+    if (t.notes !== undefined) {
+      updates.push("notes = ?");
+      params.push(String(t.notes));
+    }
+
+    updates.push("updated_at = ?");
+    params.push(now);
+
+    params.push(req.params.id);
+    params.push(req.workspaceId);
+
+    const updateSql = `UPDATE tasks SET ${updates.join(", ")} WHERE id = ? AND workspace_id = ?`;
+    await db.execute(updateSql, params);
+
+    const updated = await db.query(
+      `SELECT t.id,
+              t.workspace_id as "organizationId",
+              t.project_id as "projectId",
+              COALESCE(p.name, 'General Project') as "projectName",
+              t.title,
+              COALESCE(t.description, '') as "description",
+              t.assignee_id as "assigneeId",
+              COALESCE(u.name, 'Unassigned') as "assigneeName",
+              COALESCE(u.avatar, '') as "assigneeAvatar",
+              t.priority,
+              t.status,
+              t.due_date as "dueDate",
+              COALESCE(t.estimated_hours, 0) as "estimatedHours",
+              COALESCE(t.actual_hours, 0) as "actualHours",
+              t.comments,
+              COALESCE(t.notes, '') as "notes",
+              t.created_at as "createdAt",
+              t.updated_at as "updatedAt"
+       FROM tasks t
+       LEFT JOIN projects p ON t.project_id = p.id
+       LEFT JOIN users u ON t.assignee_id = u.id
+       WHERE t.id = ? AND t.workspace_id = ?`,
+      [req.params.id, req.workspaceId]
     );
-    return res.json({ success: true, task: { ...t, id: req.params.id } });
+
+    const resultTask = updated && updated.length > 0 ? {
+      ...updated[0],
+      reporterId: req.user.id,
+      reporterName: req.user.name,
+      labels: Array.isArray(t.labels) ? t.labels : ["Sprint"],
+      comments: typeof updated[0].comments === "string" ? (() => { try { return JSON.parse(updated[0].comments); } catch { return []; } })() : (updated[0].comments || []),
+    } : { ...t, id: req.params.id };
+
+    return res.json({ success: true, task: resultTask });
   } catch (err: any) {
+    console.error("PUT /api/tasks/:id error:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });

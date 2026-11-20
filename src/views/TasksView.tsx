@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import { DataTable, Column } from "../components/common/DataTable";
 import { StatusBadge } from "../components/common/StatusBadge";
@@ -57,11 +57,19 @@ export const TasksView: React.FC = () => {
   const [calendarMonth, setCalendarMonth] = useState<number>(realMonth);
 
   const activeSubView = currentSubView || "kanban";
+  const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [filterProject, setFilterProject] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("default");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const currentUserEmployee = employees.find(
+    (e) =>
+      (e.email && currentUser.email && e.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+      (e.fullName && currentUser.name && e.fullName.toLowerCase() === currentUser.name.toLowerCase()) ||
+      e.id === currentUser.id
+  );
 
   // Quick Task Creator Bar
   const [quickTitle, setQuickTitle] = useState("");
@@ -70,6 +78,12 @@ export const TasksView: React.FC = () => {
     new Date(Date.now() + 5 * 86400000).toISOString().split("T")[0]
   );
   const [quickPriority, setQuickPriority] = useState<"Low" | "Medium" | "High" | "Critical">("High");
+
+  useEffect(() => {
+    if (!quickProjectId && projects.length > 0) {
+      setQuickProjectId(projects[0].id);
+    }
+  }, [projects, quickProjectId]);
 
   const taskColumns = ["Backlog", "To Do", "In Progress", "In Review", "Done"];
 
@@ -91,6 +105,18 @@ export const TasksView: React.FC = () => {
 
   const filteredTasks = tasks
     .filter((t) => {
+      if (filterAssignee === "me") {
+        const isMe =
+          (t.assigneeId && (t.assigneeId === currentUser.id || (currentUserEmployee && t.assigneeId === currentUserEmployee.id))) ||
+          (t.assigneeName && currentUser.name && t.assigneeName.toLowerCase() === currentUser.name.toLowerCase());
+        if (!isMe) return false;
+      } else if (filterAssignee !== "all") {
+        const targetEmp = employees.find((e) => e.id === filterAssignee);
+        const matchesAssignee =
+          t.assigneeId === filterAssignee ||
+          (targetEmp && t.assigneeName && targetEmp.fullName.toLowerCase() === t.assigneeName.toLowerCase());
+        if (!matchesAssignee) return false;
+      }
       if (filterProject !== "all" && t.projectId !== filterProject) return false;
       if (filterPriority !== "all" && (t.priority || "").toLowerCase() !== filterPriority.toLowerCase()) return false;
       if (searchQuery.trim()) {
@@ -147,9 +173,9 @@ export const TasksView: React.FC = () => {
     const proj = projects.find((p) => p.id === quickProjectId) || projects[0];
     createTask({
       title: quickTitle.trim(),
-      description: `Task created for ${proj?.name || "Project"}`,
-      projectId: proj ? proj.id : "proj-101",
-      projectName: proj ? proj.name : "Cloud Portal Migration",
+      description: `Task created for ${proj?.name || "Deliverables"}`,
+      projectId: proj ? proj.id : (projects[0]?.id || ""),
+      projectName: proj ? proj.name : (projects[0]?.name || "Core Operational Deliverables"),
       assigneeId: currentUser.id,
       assigneeName: currentUser.name,
       reporterId: currentUser.id,
@@ -461,6 +487,51 @@ export const TasksView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Quick Visibility Filter: All Public vs My Tasks */}
+          <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+            <button
+              type="button"
+              onClick={() => setFilterAssignee("all")}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                filterAssignee === "all"
+                  ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs font-semibold"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Public (All)
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterAssignee("me")}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                filterAssignee === "me"
+                  ? "bg-blue-600 text-white shadow-xs font-semibold"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <User size={12} />
+              <span>Assigned to Me</span>
+            </button>
+          </div>
+
+          {/* Assignee Filter Dropdown */}
+          <select
+            value={filterAssignee}
+            onChange={(e) => setFilterAssignee(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 max-w-[150px]"
+            title="Filter by allotted team member"
+          >
+            <option value="all">👥 All Assignees</option>
+            <option value="me">👤 Assigned to Me</option>
+            <optgroup label="Team Members">
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.fullName}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+
           {/* Project Filter */}
           <select
             value={filterProject}

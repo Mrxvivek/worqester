@@ -254,8 +254,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         StorageService.saveMilestones(milestonesRes.value);
       }
       if (tasksRes.status === "fulfilled" && Array.isArray(tasksRes.value)) {
-        setTasks(tasksRes.value);
-        StorageService.saveTasks(tasksRes.value);
+        if (tasksRes.value.length > 0) {
+          setTasks(tasksRes.value);
+          StorageService.saveTasks(tasksRes.value);
+        } else {
+          const currentLocal = StorageService.getTasks();
+          if (currentLocal.length === 0) {
+            setTasks([]);
+          }
+        }
       }
       if (employeesRes.status === "fulfilled" && Array.isArray(employeesRes.value)) {
         setEmployees(employeesRes.value);
@@ -750,7 +757,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     StorageService.saveTasks(list);
     setTasks(list);
     syncProjectProgress(newTask.projectId, list);
-    TasksApi.createTask(newTask).catch((e) => console.error("API createTask error:", e));
+    TasksApi.createTask(newTask)
+      .then((savedTask) => {
+        if (savedTask) {
+          setTasks((prev) => {
+            const updated = prev.map((t) => (t.id === newTask.id ? { ...t, ...savedTask } : t));
+            StorageService.saveTasks(updated);
+            return updated;
+          });
+        }
+      })
+      .catch((e) => console.error("API createTask error:", e));
+
     StorageService.addAuditLog({
       userName: currentUser.name,
       userRole: currentUser.role,
@@ -759,7 +777,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       entityName: newTask.title,
       details: `Assigned task to ${newTask.assigneeName} with due date ${newTask.dueDate}.`,
     });
-    refreshData();
     return newTask;
   };
 
@@ -777,7 +794,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (affectedProjectId) {
       syncProjectProgress(affectedProjectId, list);
     }
-    TasksApi.updateTask(id, data).catch((e) => console.error("API updateTask error:", e));
+    TasksApi.updateTask(id, data)
+      .then((savedTask) => {
+        if (savedTask) {
+          setTasks((prev) => {
+            const updated = prev.map((t) => (t.id === id ? { ...t, ...savedTask } : t));
+            StorageService.saveTasks(updated);
+            return updated;
+          });
+        }
+      })
+      .catch((e) => console.error("API updateTask error:", e));
+
     StorageService.addAuditLog({
       userName: currentUser.name,
       userRole: currentUser.role,
@@ -786,7 +814,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       entityName: id,
       details: `Task status or priority adjusted.`,
     });
-    refreshData();
   };
 
   const toggleTaskCompletion = (id: string) => {
@@ -815,7 +842,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       entityName: target.title,
       details: isNowDone ? `Marked task '${target.title}' as Done.` : `Reopened task '${target.title}'.`,
     });
-    refreshData();
   };
 
 

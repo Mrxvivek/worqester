@@ -196,11 +196,12 @@ export const GlobalCreateModal: React.FC = () => {
         selectedProj = createProject(defaultProjData);
       }
       const selectedUser = employees.find((e) => e.id === taskAssigneeId) || employees[0];
+      const targetProj = selectedProj || projects[0];
       createTask({
         title: taskTitle || "Execute Deliverable Milestones",
         description: "Task created from quick action modal.",
-        projectId: selectedProj?.id || "prj-default",
-        projectName: selectedProj?.name || "Core Operational Deliverables",
+        projectId: targetProj ? targetProj.id : "",
+        projectName: targetProj ? targetProj.name : "Core Operational Deliverables",
         assigneeId: selectedUser?.id || currentUser.id,
         assigneeName: selectedUser?.fullName || currentUser.name,
         assigneeAvatar: selectedUser?.avatar || currentUser.avatar,
